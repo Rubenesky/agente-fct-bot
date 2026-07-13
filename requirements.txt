@@ -5,3 +5,4 @@ feedparser
 schedule
 beautifulsoup4
 python-telegram-bot
+flask
