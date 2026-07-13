@@ -1,0 +1,7 @@
+langgraph
+pydantic
+requests
+feedparser
+schedule
+beautifulsoup4
+python-telegram-bot

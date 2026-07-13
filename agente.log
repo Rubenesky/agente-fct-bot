@@ -1,0 +1,275 @@
+2026-07-13 21:15:27,675 - INFO - ==================================================
+2026-07-13 21:15:27,710 - INFO - ==================================================
+2026-07-13 21:15:31,897 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:15:51,625 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:24:23,142 - INFO - ==================================================
+2026-07-13 21:24:23,142 - INFO - ==================================================
+2026-07-13 21:24:27,298 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:24:47,519 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:25:08,916 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:25:29,139 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:25:50,159 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:26:10,669 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:29:58,246 - INFO - ==================================================
+2026-07-13 21:29:58,251 - INFO - ==================================================
+2026-07-13 21:30:02,749 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:30:31,502 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:30:53,458 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:31:16,453 - ERROR - Error en Tecnoempleo: URL can't contain control characters. '/rss/empleo/?q=pr%C3%A1cticas FP' (found at least ' ')
+2026-07-13 21:31:28,769 - INFO - ==================================================
+2026-07-13 21:31:28,770 - INFO - Iniciando agente de busqueda de practicas FCT
+2026-07-13 21:31:28,770 - INFO - 13/07/2026 21:31:28
+2026-07-13 21:31:28,770 - INFO - ==================================================
+2026-07-13 21:31:28,783 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:31:28,783 - INFO -   - FCT
+2026-07-13 21:31:30,445 - INFO -   - prácticas
+2026-07-13 21:31:31,685 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:31:32,276 - INFO -   - prácticas FP
+2026-07-13 21:31:33,857 - INFO -   - DAW
+2026-07-13 21:31:35,251 - INFO -   - DAM
+2026-07-13 21:31:36,817 - INFO -   - ASIR
+2026-07-13 21:31:38,215 - INFO -   - desarrollo
+2026-07-13 21:31:39,196 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:31:39,794 - INFO -   - programación
+2026-07-13 21:31:41,389 - INFO -   - becario
+2026-07-13 21:31:42,851 - INFO -   - beca
+2026-07-13 21:31:44,402 - INFO -   - estudiante
+2026-07-13 21:31:46,041 - INFO -   - junior
+2026-07-13 21:31:47,516 - INFO -   - trainee
+2026-07-13 21:31:48,953 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:31:48,953 - INFO -   - FCT
+2026-07-13 21:31:50,500 - INFO -   - prácticas
+2026-07-13 21:31:52,138 - INFO -   - prácticas FP
+2026-07-13 21:31:53,587 - INFO -   - DAW
+2026-07-13 21:31:55,065 - INFO -   - DAM
+2026-07-13 21:31:56,449 - INFO -   - ASIR
+2026-07-13 21:31:57,960 - INFO -   - desarrollo
+2026-07-13 21:31:59,080 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:31:59,671 - INFO -   - programación
+2026-07-13 21:32:00,998 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:32:01,597 - INFO -   - becario
+2026-07-13 21:32:03,313 - INFO -   - beca
+2026-07-13 21:32:04,314 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:04,913 - INFO -   - estudiante
+2026-07-13 21:32:06,565 - INFO -   - junior
+2026-07-13 21:32:07,653 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:08,256 - INFO -   - trainee
+2026-07-13 21:32:09,799 - INFO - Resumen: 125 ofertas totales, 11 relevantes
+2026-07-13 21:32:09,802 - INFO - Total ofertas nuevas encontradas: 1
+2026-07-13 21:32:09,827 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:32:09,827 - INFO -   - FCT
+2026-07-13 21:32:11,348 - INFO -   - prácticas
+2026-07-13 21:32:12,341 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:12,941 - INFO -   - prácticas FP
+2026-07-13 21:32:14,408 - INFO -   - DAW
+2026-07-13 21:32:15,812 - INFO -   - DAM
+2026-07-13 21:32:17,248 - INFO -   - ASIR
+2026-07-13 21:32:18,655 - INFO -   - desarrollo
+2026-07-13 21:32:19,748 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:32:20,348 - INFO -   - programación
+2026-07-13 21:32:21,909 - INFO -   - becario
+2026-07-13 21:32:23,351 - INFO -   - beca
+2026-07-13 21:32:24,825 - INFO -   - estudiante
+2026-07-13 21:32:26,435 - INFO -   - junior
+2026-07-13 21:32:27,956 - INFO -   - trainee
+2026-07-13 21:32:29,395 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:32:29,395 - INFO -   - FCT
+2026-07-13 21:32:30,910 - INFO -   - prácticas
+2026-07-13 21:32:32,556 - INFO -   - prácticas FP
+2026-07-13 21:32:34,047 - INFO -   - DAW
+2026-07-13 21:32:35,433 - INFO -   - DAM
+2026-07-13 21:32:36,880 - INFO -   - ASIR
+2026-07-13 21:32:38,308 - INFO -   - desarrollo
+2026-07-13 21:32:39,324 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:32:39,932 - INFO -   - programación
+2026-07-13 21:32:40,921 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:32:41,520 - INFO -   - becario
+2026-07-13 21:32:43,195 - INFO -   - beca
+2026-07-13 21:32:44,216 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:44,805 - INFO -   - estudiante
+2026-07-13 21:32:46,398 - INFO -   - junior
+2026-07-13 21:32:47,444 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:48,041 - INFO -   - trainee
+2026-07-13 21:32:49,483 - INFO - Resumen: 125 ofertas totales, 11 relevantes
+2026-07-13 21:32:49,485 - INFO - Total ofertas nuevas encontradas: 1
+2026-07-13 21:32:49,497 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:32:49,497 - INFO -   - FCT
+2026-07-13 21:32:51,003 - INFO -   - prácticas
+2026-07-13 21:32:52,121 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:32:52,708 - INFO -   - prácticas FP
+2026-07-13 21:32:54,209 - INFO -   - DAW
+2026-07-13 21:32:55,652 - INFO -   - DAM
+2026-07-13 21:32:57,095 - INFO -   - ASIR
+2026-07-13 21:32:58,464 - INFO -   - desarrollo
+2026-07-13 21:32:59,513 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:33:00,127 - INFO -   - programación
+2026-07-13 21:33:01,773 - INFO -   - becario
+2026-07-13 21:33:03,274 - INFO -   - beca
+2026-07-13 21:33:04,817 - INFO -   - estudiante
+2026-07-13 21:33:06,568 - INFO -   - junior
+2026-07-13 21:33:08,178 - INFO -   - trainee
+2026-07-13 21:33:09,638 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:33:09,638 - INFO -   - FCT
+2026-07-13 21:33:11,099 - INFO -   - prácticas
+2026-07-13 21:33:12,744 - INFO -   - prácticas FP
+2026-07-13 21:33:14,208 - INFO -   - DAW
+2026-07-13 21:33:15,744 - INFO -   - DAM
+2026-07-13 21:33:17,259 - INFO -   - ASIR
+2026-07-13 21:33:18,701 - INFO -   - desarrollo
+2026-07-13 21:33:19,735 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:33:20,345 - INFO -   - programación
+2026-07-13 21:33:21,432 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:33:22,027 - INFO -   - becario
+2026-07-13 21:33:26,646 - INFO -   - beca
+2026-07-13 21:33:27,683 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:33:28,283 - INFO -   - estudiante
+2026-07-13 21:33:30,176 - INFO -   - junior
+2026-07-13 21:33:31,283 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:33:31,873 - INFO -   - trainee
+2026-07-13 21:33:33,295 - INFO - Resumen: 125 ofertas totales, 11 relevantes
+2026-07-13 21:33:33,295 - INFO - Total ofertas nuevas encontradas: 1
+2026-07-13 21:33:33,295 - INFO - No hay ofertas nuevas para aprobar.
+2026-07-13 21:33:33,295 - INFO - No se aprobaron ofertas
+2026-07-13 21:33:33,295 - INFO - Ejecucion completada: 0 ofertas aprobadas
+2026-07-13 21:42:49,414 - INFO - ==================================================
+2026-07-13 21:42:49,414 - INFO - Iniciando agente de busqueda de practicas FCT
+2026-07-13 21:42:49,414 - INFO - 13/07/2026 21:42:49
+2026-07-13 21:42:49,414 - INFO - ==================================================
+2026-07-13 21:42:49,444 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:42:49,444 - INFO -   - FCT
+2026-07-13 21:42:53,585 - INFO -   - prácticas
+2026-07-13 21:42:54,566 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:42:57,935 - INFO -   - prácticas FP
+2026-07-13 21:43:01,178 - INFO -   - DAW
+2026-07-13 21:43:05,156 - INFO -   - DAM
+2026-07-13 21:43:08,474 - INFO -   - ASIR
+2026-07-13 21:43:12,180 - INFO -   - desarrollo
+2026-07-13 21:43:13,208 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:43:16,411 - INFO -   - programación
+2026-07-13 21:43:20,597 - INFO -   - becario
+2026-07-13 21:43:25,220 - INFO -   - beca
+2026-07-13 21:43:28,815 - INFO -   - estudiante
+2026-07-13 21:43:32,191 - INFO -   - junior
+2026-07-13 21:43:35,889 - INFO -   - trainee
+2026-07-13 21:43:39,325 - INFO -   - informática
+2026-07-13 21:43:43,764 - INFO -   - sistemas
+2026-07-13 21:43:47,487 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:43:47,487 - INFO -   - FCT
+2026-07-13 21:43:51,052 - INFO -   - prácticas
+2026-07-13 21:43:54,804 - INFO -   - prácticas FP
+2026-07-13 21:43:58,686 - INFO -   - DAW
+2026-07-13 21:44:00,465 - INFO -     + LinkedIn: 1 relevantes (de 2)
+2026-07-13 21:44:02,007 - INFO -   - DAM
+2026-07-13 21:44:04,003 - INFO -     + LinkedIn: 1 relevantes (de 2)
+2026-07-13 21:44:05,755 - INFO -   - ASIR
+2026-07-13 21:44:07,762 - INFO -     + LinkedIn: 1 relevantes (de 1)
+2026-07-13 21:44:09,328 - INFO -   - desarrollo
+2026-07-13 21:44:10,487 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:44:13,132 - INFO -   - programación
+2026-07-13 21:44:14,225 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:44:15,751 - INFO -     + LinkedIn: 1 relevantes (de 5)
+2026-07-13 21:44:17,158 - INFO -   - becario
+2026-07-13 21:44:21,072 - INFO -   - beca
+2026-07-13 21:44:22,259 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:44:25,611 - INFO -   - estudiante
+2026-07-13 21:44:29,780 - INFO -   - junior
+2026-07-13 21:44:30,909 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:44:32,150 - INFO -     + LinkedIn: 1 relevantes (de 5)
+2026-07-13 21:44:33,563 - INFO -   - trainee
+2026-07-13 21:44:37,011 - INFO -   - informática
+2026-07-13 21:44:38,164 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:44:41,073 - INFO -   - sistemas
+2026-07-13 21:44:42,068 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:44:45,057 - INFO - Resumen: 284 ofertas totales, 19 relevantes
+2026-07-13 21:44:45,057 - INFO - Total ofertas nuevas encontradas: 8
+2026-07-13 21:44:45,070 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:44:45,070 - INFO -   - FCT
+2026-07-13 21:44:48,402 - INFO -   - prácticas
+2026-07-13 21:44:49,417 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:44:51,912 - INFO -   - prácticas FP
+2026-07-13 21:44:55,675 - INFO -   - DAW
+2026-07-13 21:44:59,228 - INFO -   - DAM
+2026-07-13 21:45:02,577 - INFO -   - ASIR
+2026-07-13 21:45:06,890 - INFO -   - desarrollo
+2026-07-13 21:45:09,523 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:45:12,221 - INFO -   - programación
+2026-07-13 21:45:16,573 - INFO -   - becario
+2026-07-13 21:45:20,231 - INFO -   - beca
+2026-07-13 21:45:24,105 - INFO -   - estudiante
+2026-07-13 21:45:27,844 - INFO -   - junior
+2026-07-13 21:45:31,409 - INFO -   - trainee
+2026-07-13 21:45:35,031 - INFO -   - informática
+2026-07-13 21:45:38,702 - INFO -   - sistemas
+2026-07-13 21:45:42,536 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:45:42,536 - INFO -   - FCT
+2026-07-13 21:45:46,573 - INFO -   - prácticas
+2026-07-13 21:45:50,457 - INFO -   - prácticas FP
+2026-07-13 21:45:53,831 - INFO -   - DAW
+2026-07-13 21:45:55,765 - INFO -     + LinkedIn: 1 relevantes (de 2)
+2026-07-13 21:45:57,156 - INFO -   - DAM
+2026-07-13 21:45:59,226 - INFO -     + LinkedIn: 1 relevantes (de 2)
+2026-07-13 21:46:00,674 - INFO -   - ASIR
+2026-07-13 21:46:04,551 - INFO -   - desarrollo
+2026-07-13 21:46:05,538 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:46:08,380 - INFO -   - programación
+2026-07-13 21:46:09,401 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:46:10,567 - INFO -     + LinkedIn: 1 relevantes (de 5)
+2026-07-13 21:46:11,962 - INFO -   - becario
+2026-07-13 21:46:15,741 - INFO -   - beca
+2026-07-13 21:46:16,866 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:46:19,771 - INFO -   - estudiante
+2026-07-13 21:46:23,942 - INFO -   - junior
+2026-07-13 21:46:25,319 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:46:26,555 - INFO -     + LinkedIn: 1 relevantes (de 5)
+2026-07-13 21:46:28,008 - INFO -   - trainee
+2026-07-13 21:46:31,748 - INFO -   - informática
+2026-07-13 21:46:32,709 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:46:35,654 - INFO -   - sistemas
+2026-07-13 21:46:36,860 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:46:39,888 - INFO - Resumen: 291 ofertas totales, 18 relevantes
+2026-07-13 21:46:39,888 - INFO - Total ofertas nuevas encontradas: 7
+2026-07-13 21:46:39,913 - INFO - 📌 Buscando en Granada...
+2026-07-13 21:46:39,913 - INFO -   - FCT
+2026-07-13 21:46:43,172 - INFO -   - prácticas
+2026-07-13 21:46:44,405 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:46:47,299 - INFO -   - prácticas FP
+2026-07-13 21:46:50,786 - INFO -   - DAW
+2026-07-13 21:46:53,944 - INFO -   - DAM
+2026-07-13 21:46:57,837 - INFO -   - ASIR
+2026-07-13 21:47:01,318 - INFO -   - desarrollo
+2026-07-13 21:47:02,848 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:47:05,914 - INFO -   - programación
+2026-07-13 21:47:09,978 - INFO -   - becario
+2026-07-13 21:47:13,432 - INFO -   - beca
+2026-07-13 21:47:17,090 - INFO -   - estudiante
+2026-07-13 21:47:21,273 - INFO -   - junior
+2026-07-13 21:47:25,245 - INFO -   - trainee
+2026-07-13 21:47:28,930 - INFO -   - informática
+2026-07-13 21:47:32,992 - INFO -   - sistemas
+2026-07-13 21:47:37,029 - INFO - 📌 Buscando en Málaga...
+2026-07-13 21:47:37,029 - INFO -   - FCT
+2026-07-13 21:47:40,250 - INFO -   - prácticas
+2026-07-13 21:47:44,214 - INFO -   - prácticas FP
+2026-07-13 21:47:47,738 - INFO -   - DAW
+2026-07-13 21:47:51,450 - INFO -   - DAM
+2026-07-13 21:47:55,070 - INFO -   - ASIR
+2026-07-13 21:47:59,371 - INFO -   - desarrollo
+2026-07-13 21:48:00,504 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:48:03,863 - INFO -   - programación
+2026-07-13 21:48:04,912 - INFO -     + Adzuna: 3 relevantes (de 10)
+2026-07-13 21:48:08,074 - INFO -   - becario
+2026-07-13 21:48:11,701 - INFO -   - beca
+2026-07-13 21:48:12,752 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:48:15,291 - INFO -   - estudiante
+2026-07-13 21:48:19,252 - INFO -   - junior
+2026-07-13 21:48:20,211 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:48:23,072 - INFO -   - trainee
+2026-07-13 21:48:26,662 - INFO -   - informática
+2026-07-13 21:48:27,644 - INFO -     + Adzuna: 2 relevantes (de 10)
+2026-07-13 21:48:30,503 - INFO -   - sistemas
+2026-07-13 21:48:31,679 - INFO -     + Adzuna: 1 relevantes (de 10)
+2026-07-13 21:48:34,404 - INFO - Resumen: 278 ofertas totales, 14 relevantes
+2026-07-13 21:48:34,407 - INFO - Total ofertas nuevas encontradas: 3
+2026-07-13 21:48:34,409 - INFO - No hay ofertas nuevas para aprobar.
+2026-07-13 21:48:34,409 - INFO - No se aprobaron ofertas
+2026-07-13 21:48:34,410 - INFO - Ejecucion completada: 0 ofertas aprobadas
