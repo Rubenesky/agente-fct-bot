@@ -30,20 +30,41 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     def execute():
         try:
+            # Ejecutar el agente y capturar salida
             result = subprocess.run(
                 ["python", "main.py", "once"],
                 capture_output=True,
                 text=True,
                 timeout=300
             )
-            msg = "✅ Agente completado!\n\n"
+            
+            # Construir mensaje de respuesta SIEMPRE
+            msg = "🤖 <b>Agente ejecutado</b>\n"
+            msg += f"📅 {time.strftime('%d/%m/%Y %H:%M:%S')}\n\n"
+            
+            # Buscar en la salida si encontró ofertas
             if result.stdout:
-                msg += f"📊 Output:\n{result.stdout[:800]}"
+                # Buscar líneas clave en la salida
+                lines = result.stdout.split('\n')
+                offers_found = False
+                for line in lines:
+                    if "ofertas nuevas encontradas" in line.lower() or "ofertas relevantes" in line.lower():
+                        offers_found = True
+                        msg += f"📊 {line.strip()}\n"
+                
+                if not offers_found:
+                    msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
+                    msg += "🔄 El agente ha revisado todas las fuentes.\n"
+            else:
+                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
+            
             if result.stderr:
-                msg += f"\n\n⚠️ Errores:\n{result.stderr[:300]}"
-            if len(msg) > 4000:
-                msg = msg[:4000] + "... (truncado)"
-            context.bot.send_message(chat_id=chat_id, text=msg)
+                # Si hay errores, añadirlos al mensaje
+                msg += f"\n⚠️ <b>Errores:</b>\n{result.stderr[:500]}"
+            
+            # Enviar el mensaje siempre
+            context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
+            
         except subprocess.TimeoutExpired:
             context.bot.send_message(chat_id=chat_id, text="⏰ El agente tardó demasiado (>5 minutos)")
         except Exception as e:
@@ -54,18 +75,21 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 Bot de control del Agente FCT\n\n"
+        "🤖 <b>Bot de control del Agente FCT</b>\n\n"
         "Comandos disponibles:\n"
         "/run_agent - Ejecutar la búsqueda de ofertas\n"
-        "/status - Ver estado del agente"
+        "/status - Ver estado del agente",
+        parse_mode="HTML"
     )
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📊 Estado del agente:\n\n"
-        "✅ Bot activo en la nube\n"
+        "📊 <b>Estado del agente</b>\n\n"
+        "✅ Bot activo en la nube (Render)\n"
         "📁 Archivos: memory.json, approved_offers.json, agente.log\n"
-        "📱 Envía /run_agent para ejecutar manualmente"
+        "📱 Envía /run_agent para ejecutar manualmente\n"
+        "⏰ El agente busca ofertas de FCT/prácticas en Granada y Málaga",
+        parse_mode="HTML"
     )
 
 def run_telegram_bot():
