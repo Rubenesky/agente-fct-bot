@@ -29,7 +29,6 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        # Timeout de 10 minutos (600 segundos)
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
         stdout_text = stdout.decode('utf-8', errors='ignore')
         stderr_text = stderr.decode('utf-8', errors='ignore')
@@ -38,20 +37,29 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = "🤖 <b>Agente ejecutado</b>\n"
         msg += f"📅 {__import__('time').strftime('%d/%m/%Y %H:%M:%S')}\n\n"
         
-        if stdout_text:
-            lines = stdout_text.split('\n')
-            offers_found = False
-            for line in lines:
-                if "ofertas nuevas encontradas" in line.lower() or "ofertas relevantes" in line.lower():
-                    offers_found = True
-                    msg += f"📊 {line.strip()}\n"
-            if not offers_found:
-                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
+        # ============================================
+        # NUEVO: Mostrar TODO el stdout si hay ofertas
+        # ============================================
+        if "--- OFERTAS NUEVAS ENCONTRADAS ---" in stdout_text:
+            # Extraer solo la parte de las ofertas
+            parts = stdout_text.split("--- OFERTAS NUEVAS ENCONTRADAS ---")
+            if len(parts) > 1:
+                offers_part = parts[1].strip()
+                if offers_part:
+                    msg += "📊 <b>Ofertas encontradas</b>\n"
+                    msg += offers_part
         else:
-            msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
+            # Si no hay ofertas, mostrar mensaje genérico
+            if "No se encontraron ofertas nuevas" in stdout_text:
+                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
+            else:
+                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
         
+        # Limpiar errores (solo mostrar ERROR real)
         if stderr_text:
-            msg += f"\n⚠️ <b>Errores:</b>\n{stderr_text[:500]}"
+            error_lines = [line for line in stderr_text.split('\n') if "ERROR" in line]
+            if error_lines:
+                msg += f"\n⚠️ <b>Errores:</b>\n" + "\n".join(error_lines[:3])
         
         await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
         
@@ -89,10 +97,8 @@ def run_telegram_bot():
     app.run_polling()
 
 if __name__ == "__main__":
-    # Servidor web en hilo separado
     web_thread = threading.Thread(target=lambda: app_web.run(host='0.0.0.0', port=10000))
     web_thread.daemon = True
     web_thread.start()
     
-    # Bot de Telegram en hilo principal
     run_telegram_bot()
