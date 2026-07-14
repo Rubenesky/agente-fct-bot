@@ -5,7 +5,7 @@ Características:
 - Búsqueda en 7 fuentes: Adzuna, Tecnoempleo, Indeed, LinkedIn, InfoJobs, Glassdoor, Trabajos.com
 - Filtro avanzado por relevancia (puntuación 0-100)
 - Memoria persistente (no repite ofertas vistas)
-- Programación diaria automática
+- Aprobación automática (sin interacción manual)
 - Notificaciones por Telegram
 - Logging completo
 - Manejo de errores robusto
@@ -609,42 +609,35 @@ def router(state: State) -> str:
         return "approve"
 
 def approve_node(state: State) -> State:
-    """Nodo de aprobación manual."""
+    """
+    Nodo de aprobación automática (sin interacción manual).
+    Aprueba automáticamente las ofertas con puntuación >= AUTO_APPROVE_SCORE.
+    """
     approved_offers = []
     
     if not state['offers']:
         logger.info("No hay ofertas nuevas para aprobar.")
     else:
-        logger.info(f"Mostrando {len(state['offers'])} ofertas para aprobar")
+        logger.info(f"Revisando {len(state['offers'])} ofertas...")
         
-        auto_approve = [o for o in state['offers'] if get_relevance_score(o) >= AUTO_APPROVE_SCORE]
-        manual_offers = [o for o in state['offers'] if get_relevance_score(o) < AUTO_APPROVE_SCORE]
-        
-        if auto_approve:
-            approved_offers.extend(auto_approve)
-            logger.info(f"Aprobadas automaticamente: {len(auto_approve)} (puntuacion > {AUTO_APPROVE_SCORE})")
-        
-        if manual_offers:
-            logger.info(f"Manual: {len(manual_offers)} ofertas")
-            for idx, offer in enumerate(manual_offers, 1):
-                score = get_relevance_score(offer)
-                print(f"\n--- Oferta {idx}/{len(manual_offers)} (Relevancia: {score}/100) ---")
-                print(f"Titulo: {offer.title}")
-                print(f"Empresa: {offer.company}")
-                print(f"Ubicacion: {offer.location}")
-                print(f"Modalidad: {offer.mode}")
-                print(f"Fuente: {offer.source}")
-                print(f"URL: {offer.url}")
-                approval = input("Aprobar esta oferta? (s/n): ").strip().lower()
-                if approval == 's' or approval == 'si':
-                    approved_offers.append(offer)
+        # Aprobar automáticamente las que superen el umbral
+        for offer in state['offers']:
+            score = get_relevance_score(offer)
+            if score >= AUTO_APPROVE_SCORE:
+                approved_offers.append(offer)
+                logger.info(f"✅ Aprobada automáticamente: {offer.title[:50]} (puntuación: {score})")
+            else:
+                logger.info(f"❌ Descartada: {offer.title[:50]} (puntuación: {score})")
     
+    # Guardar ofertas aprobadas
     if approved_offers:
         with open(APPROVED_FILE, 'a', encoding='utf-8') as f:
             for offer in approved_offers:
                 f.write(offer.model_dump_json(indent=2) + '\n')
         
         logger.info(f"{len(approved_offers)} ofertas aprobadas guardadas")
+        
+        # Enviar notificación por Telegram
         send_offers_summary(approved_offers)
     else:
         logger.info("No se aprobaron ofertas")
@@ -705,7 +698,7 @@ def run_agent():
         return result
     except Exception as e:
         logger.error(f"Error en la ejecucion: {e}")
-        send_telegram(f"Error en el agente: {e}")
+        send_telegram(f"❌ Error en el agente: {e}")
         return None
 
 # ============================================
