@@ -9,6 +9,7 @@ Características:
 - Notificaciones por Telegram
 - Logging completo
 - Manejo de errores robusto
+- MUESTRA LAS OFERTAS EN LA SALIDA ESTÁNDAR
 """
 
 import sys
@@ -582,6 +583,19 @@ def search_node(state: State) -> State:
         logger.info("No se encontraron ofertas nuevas.")
     else:
         logger.info(f"Total ofertas nuevas encontradas: {len(unique_offers)}")
+        
+        # ============================================
+        # NUEVO: MOSTRAR OFERTAS EN LA SALIDA ESTÁNDAR
+        # ============================================
+        print("\n--- OFERTAS NUEVAS ENCONTRADAS ---")
+        for i, offer in enumerate(unique_offers[:10], 1):
+            print(f"{i}. {offer.title[:80]}")
+            print(f"   Empresa: {offer.company}")
+            print(f"   Ubicación: {offer.location}")
+            print(f"   Modalidad: {offer.mode}")
+            print(f"   Fuente: {offer.source}")
+            print(f"   🔗 {offer.url}")
+            print("")
     
     state['offers'].extend(unique_offers)
     state['iteration'] += 1
