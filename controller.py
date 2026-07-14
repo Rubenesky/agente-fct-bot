@@ -1,5 +1,6 @@
 import subprocess
 import asyncio
+import threading
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -23,17 +24,17 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Comando recibido. Ejecutando agente...")
     
     try:
-        # Ejecutar main.py y esperar a que termine
         process = await asyncio.create_subprocess_exec(
             "python", "main.py", "once",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+        # Timeout de 10 minutos (600 segundos)
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
         stdout_text = stdout.decode('utf-8', errors='ignore')
         stderr_text = stderr.decode('utf-8', errors='ignore')
         
-        # Construir mensaje de respuesta
+        # Construir mensaje
         msg = "🤖 <b>Agente ejecutado</b>\n"
         msg += f"📅 {__import__('time').strftime('%d/%m/%Y %H:%M:%S')}\n\n"
         
@@ -46,7 +47,6 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     msg += f"📊 {line.strip()}\n"
             if not offers_found:
                 msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
-                msg += "🔄 El agente ha revisado todas las fuentes.\n"
         else:
             msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
         
@@ -56,7 +56,7 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
         
     except asyncio.TimeoutError:
-        await context.bot.send_message(chat_id=chat_id, text="⏰ El agente tardó demasiado (>5 minutos)")
+        await context.bot.send_message(chat_id=chat_id, text="⏰ El agente tardó demasiado (>10 minutos)")
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error: {e}")
 
@@ -78,7 +78,6 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-# --- Función principal ---
 def run_telegram_bot():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -90,11 +89,10 @@ def run_telegram_bot():
     app.run_polling()
 
 if __name__ == "__main__":
-    # Ejecutar el servidor web en un hilo separado
-    import threading
+    # Servidor web en hilo separado
     web_thread = threading.Thread(target=lambda: app_web.run(host='0.0.0.0', port=10000))
     web_thread.daemon = True
     web_thread.start()
     
-    # Ejecutar el bot de Telegram en el hilo principal
+    # Bot de Telegram en hilo principal
     run_telegram_bot()
