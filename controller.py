@@ -21,7 +21,6 @@ def health():
 
 def run_web_server():
     app_web.run(host='0.0.0.0', port=10000)
-# ----------------------------------------
 
 # --- Bot de Telegram ---
 async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -30,7 +29,6 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     def execute():
         try:
-            # Ejecutar el agente y capturar salida
             result = subprocess.run(
                 ["python", "main.py", "once"],
                 capture_output=True,
@@ -38,13 +36,10 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 timeout=300
             )
             
-            # Construir mensaje de respuesta SIEMPRE
             msg = "🤖 <b>Agente ejecutado</b>\n"
             msg += f"📅 {time.strftime('%d/%m/%Y %H:%M:%S')}\n\n"
             
-            # Buscar en la salida si encontró ofertas
             if result.stdout:
-                # Buscar líneas clave en la salida
                 lines = result.stdout.split('\n')
                 offers_found = False
                 for line in lines:
@@ -59,10 +54,8 @@ async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
             
             if result.stderr:
-                # Si hay errores, añadirlos al mensaje
                 msg += f"\n⚠️ <b>Errores:</b>\n{result.stderr[:500]}"
             
-            # Enviar el mensaje siempre
             context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
             
         except subprocess.TimeoutExpired:
@@ -93,6 +86,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def run_telegram_bot():
+    """Ejecuta el bot de Telegram en un bucle independiente."""
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("run_agent", run_agent))
@@ -104,10 +98,10 @@ def run_telegram_bot():
 
 # --- Ejecutar ambos servicios en paralelo ---
 if __name__ == "__main__":
-    # Ejecutar el servidor web en un hilo separado
-    web_thread = threading.Thread(target=run_web_server)
-    web_thread.daemon = True
-    web_thread.start()
+    # Ejecutar el bot de Telegram en un hilo separado
+    bot_thread = threading.Thread(target=run_telegram_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
     
-    # Ejecutar el bot de Telegram
-    run_telegram_bot()
+    # Ejecutar el servidor web en el hilo principal
+    run_web_server()
