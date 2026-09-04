@@ -1,0 +1,44 @@
+name: Buscar ofertas FCT
+
+on:
+  schedule:
+    # 06:00 y 18:00 UTC = 08:00/20:00 hora de España en verano (CEST),
+    # 07:00/19:00 en invierno (CET) - desfase de 1h aceptado, GitHub Actions
+    # programa siempre en UTC.
+    - cron: '0 6,18 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar agente (búsqueda + clasificación + notificación)
+        env:
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py once
+
+      - name: Guardar offers.db actualizado
+        run: |
+          git config user.name "agente-fct-bot"
+          git config user.email "actions@github.com"
+          git add offers.db
+          git diff --cached --quiet || git commit -m "Actualiza offers.db [skip ci]"
+          git push

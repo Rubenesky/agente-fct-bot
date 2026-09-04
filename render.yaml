@@ -6,10 +6,12 @@ services:
     startCommand: python controller.py
     envVars:
       - key: TELEGRAM_BOT_TOKEN
-        value: 8689965407:AAEAsajcfXecj0a3qTm-ivdFVc0yZ2B_QQg
+        sync: false
       - key: TELEGRAM_CHAT_ID
-        value: 242979528
+        sync: false
       - key: ADZUNA_APP_ID
-        value: d71e6fac
+        sync: false
       - key: ADZUNA_API_KEY
-        value: 4229738c279506d405ef13c5d3c4bf4f
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

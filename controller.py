@@ -1,15 +1,11 @@
-import subprocess
-import asyncio
-import threading
 import logging
+import threading
 from flask import Flask
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-# ============================================
-# CONFIGURACIÓN
-# ============================================
-TOKEN = "8689965407:AAEAsajcfXecj0a3qTm-ivdFVc0yZ2B_QQg"
+from config import TELEGRAM_BOT_TOKEN as TOKEN
+import db
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,87 +24,73 @@ def health():
     return "OK", 200
 
 # --- Funciones del bot ---
-async def run_agent(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    logger.info(f"📩 Recibido /run_agent de {chat_id}")
-    await update.message.reply_text("✅ Comando recibido. Ejecutando agente...")
-    
-    try:
-        logger.info("🚀 Ejecutando main.py once...")
-        process = await asyncio.create_subprocess_exec(
-            "python", "main.py", "once",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
-        stdout_text = stdout.decode('utf-8', errors='ignore')
-        stderr_text = stderr.decode('utf-8', errors='ignore')
-        
-        logger.info("✅ main.py finalizado")
-        
-        msg = "🤖 <b>Agente ejecutado</b>\n"
-        msg += f"📅 {__import__('time').strftime('%d/%m/%Y %H:%M:%S')}\n\n"
-        
-        if "--- OFERTAS NUEVAS ENCONTRADAS ---" in stdout_text:
-            parts = stdout_text.split("--- OFERTAS NUEVAS ENCONTRADAS ---")
-            if len(parts) > 1:
-                offers_part = parts[1].strip()
-                if offers_part:
-                    msg += "📊 <b>Ofertas encontradas</b>\n"
-                    msg += offers_part
-        else:
-            if "No se encontraron ofertas nuevas" in stdout_text:
-                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
-            else:
-                msg += "📊 No se encontraron ofertas nuevas en esta ejecución.\n"
-        
-        if stderr_text:
-            error_lines = [line for line in stderr_text.split('\n') if "ERROR" in line]
-            if error_lines:
-                msg += f"\n⚠️ <b>Errores:</b>\n" + "\n".join(error_lines[:3])
-        
-        logger.info("📨 Enviando mensaje de resultado...")
-        await context.bot.send_message(chat_id=chat_id, text=msg, parse_mode="HTML")
-        logger.info("📨 Mensaje enviado correctamente")
-        
-    except asyncio.TimeoutError:
-        logger.error("⏰ Timeout en main.py")
-        await context.bot.send_message(chat_id=chat_id, text="⏰ El agente tardó demasiado (>10 minutos)")
-    except Exception as e:
-        logger.error(f"❌ Error: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=f"❌ Error: {e}")
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"📩 Recibido /start de {chat_id}")
     await update.message.reply_text(
         "🤖 <b>Bot de control del Agente FCT</b>\n\n"
+        "Las búsquedas se ejecutan solas por cron (GitHub Actions). Este bot "
+        "solo te avisa de ofertas nuevas y espera tu decisión con los botones "
+        "✅ Aprobar / ❌ Descartar de cada mensaje.\n\n"
         "Comandos disponibles:\n"
-        "/run_agent - Ejecutar la búsqueda de ofertas\n"
-        "/status - Ver estado del agente",
+        "/status - Ver estado del bot y ofertas pendientes",
         parse_mode="HTML"
     )
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     logger.info(f"📩 Recibido /status de {chat_id}")
+    db.init_db()
+    pending = db.get_pending_offers()
     await update.message.reply_text(
         "📊 <b>Estado del agente</b>\n\n"
         "✅ Bot activo en la nube (Render)\n"
-        "📁 Archivos: memory.json, approved_offers.json, agente.log\n"
-        "📱 Envía /run_agent para ejecutar manualmente",
+        "🗂️ Base de datos: offers.db\n"
+        f"⏳ Ofertas pendientes de revisión: {len(pending)}",
+        parse_mode="HTML"
+    )
+
+async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja los botones ✅ Aprobar / ❌ Descartar de cada oferta."""
+    query = update.callback_query
+    await query.answer()
+
+    try:
+        action, rowid_str = query.data.split(":", 1)
+        rowid = int(rowid_str)
+    except (ValueError, AttributeError):
+        logger.error(f"callback_data inesperado: {query.data!r}")
+        return
+
+    offer = db.get_offer_by_rowid(rowid)
+    if offer is None:
+        await query.edit_message_text(
+            text=query.message.text_html + "\n\n⚠️ Oferta no encontrada en la base de datos.",
+            parse_mode="HTML"
+        )
+        return
+
+    status = "approved" if action == "approve" else "rejected"
+    db.set_status(rowid, status)
+
+    label = "✅ APROBADA" if status == "approved" else "❌ DESCARTADA"
+    logger.info(f"{label}: {offer['title'][:50]} (rowid={rowid})")
+
+    await query.edit_message_text(
+        text=query.message.text_html + f"\n\n<b>{label}</b>",
         parse_mode="HTML"
     )
 
 def run_telegram_bot():
     logger.info("🤖 Iniciando bot de Telegram...")
+    db.init_db()
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("run_agent", run_agent))
     app.add_handler(CommandHandler("status", status))
-    
+    app.add_handler(CallbackQueryHandler(handle_decision))
+
     logger.info("🚀 Bot de control iniciado en Render.com...")
-    logger.info("📱 Comandos disponibles: /start, /run_agent, /status")
+    logger.info("📱 Comandos disponibles: /start, /status")
     app.run_polling()
 
 if __name__ == "__main__":
@@ -116,5 +98,5 @@ if __name__ == "__main__":
     web_thread.daemon = True
     web_thread.start()
     logger.info("🌐 Servidor web iniciado en puerto 10000")
-    
+
     run_telegram_bot()

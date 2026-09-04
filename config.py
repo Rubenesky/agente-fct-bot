@@ -2,27 +2,40 @@
 # ============================================
 # CONFIGURACIÓN DEL AGENTE
 # ============================================
+import os
+from dotenv import load_dotenv
 
-# Adzuna API (ya tienes las credenciales)
-ADZUNA_APP_ID = "d71e6fac"
-ADZUNA_API_KEY = "4229738c279506d405ef13c5d3c4bf4f"
+load_dotenv()
 
-# Telegram (TUS CREDENCIALES)
-TELEGRAM_BOT_TOKEN = "8689965407:AAEAsajcfXecj0a3qTm-ivdFVc0yZ2B_QQg"  # <--- REEMPLAZA CON TU TOKEN
-TELEGRAM_CHAT_ID = "242979528"            # <--- YA ESTÁ CONFIGURADO
+ADZUNA_APP_ID = os.environ["ADZUNA_APP_ID"]
+ADZUNA_API_KEY = os.environ["ADZUNA_API_KEY"]
+
+TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 
 # Archivos
-MEMORY_FILE = "memory.json"
-APPROVED_FILE = "approved_offers.json"
+DB_FILE = "offers.db"
 LOG_FILE = "agente.log"
+
+# Archivos legado (Fase 0/1, sustituidos por DB_FILE en la Fase 3 - se dejan
+# solo como referencia para migrate_to_sqlite.py, no los usa main.py)
+LEGACY_MEMORY_FILE = "memory.json"
+LEGACY_APPROVED_FILE = "approved_offers.json"
 
 # Configuración de búsqueda
 CITIES = ["Granada", "Málaga"]
 KEYWORDS = [
     "FCT", "prácticas", "prácticas FP", "DAW", "DAM", "ASIR",
     "desarrollo", "programación", "becario", "beca",
-    "estudiante", "junior", "trainee"
+    "estudiante", "junior", "trainee", "informática", "sistemas"
 ]
-MIN_SCORE = 20           # Puntuación mínima para mostrar ofertas
-AUTO_APPROVE_SCORE = 70  # Puntuación para aprobar automáticamente
 MAX_ITERATIONS = 3       # Número máximo de iteraciones del loop
+
+# Empresas Tier A ya mapeadas (Granada/Málaga)
+TIER_A_COMPANIES = [
+    "Cívica", "Nazaríes", "NTT Data", "Firmafy", "Atlax 360",
+    "AvaiBook", "idealista", "Freepik", "Magnific", "Yerbabuena",
+    "Aircury", "5 Digital Street", "Ideable", "MailerLite", "Nexion", "Oftex"
+]
