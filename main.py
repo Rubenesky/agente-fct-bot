@@ -2,8 +2,9 @@
 AGENTE DE BÚSQUEDA DE PRÁCTICAS FCT
 =====================================================
 Características:
-- Búsqueda en fuentes activas: Adzuna, Tecnoempleo (Indeed e InfoJobs pendientes,
-  ver notas junto a sus funciones de búsqueda)
+- Búsqueda en fuentes activas: Adzuna, Tecnoempleo, webs de empresas Tier A vía
+  Teamtailor (Fase 6, piloto: Freepik/Magnific, idealista/AvaiBook). Indeed e
+  InfoJobs pendientes, ver notas junto a sus funciones de búsqueda
 - Clasificación Tier A / Tier B / descarte vía API de Gemini (classifier.py)
 - Memoria persistente (no repite ofertas vistas)
 - Sin aprobación automática: todo lo no descartado se notifica por Telegram
@@ -17,6 +18,7 @@ Características:
 import sys
 import io
 import logging
+import re
 import time
 from datetime import datetime
 from typing import TypedDict
@@ -299,6 +301,56 @@ def search_infojobs_rss(keyword: str, location: str) -> list[JobOffer]:
         logger.error(f"Error en InfoJobs: {e}")
         return []
 
+# 5. Webs de empresas Tier A (Fase 6 - piloto)
+# Empresas que usan Teamtailor como ATS exponen un feed JSON público en
+# https://<subdominio>/jobs.json (formato JSON Feed + extensión _jobposting
+# con schema.org JobPosting, incluyendo jobLocation estructurado). No hace
+# falta autenticación ni scraping de HTML. Devuelve TODAS las ofertas
+# abiertas de la empresa (no admite filtrar por keyword), así que se llama
+# una sola vez por ejecución, no dentro del bucle de ciudades/keywords.
+TIER_A_TEAMTAILOR_SOURCES = [
+    ("jobs.magnific.com", "Freepik/Magnific"),
+    ("idealista.teamtailor.com", "idealista/AvaiBook"),
+]
+
+def search_teamtailor(subdomain: str, company_label: str) -> list[JobOffer]:
+    """Busca todas las ofertas abiertas de una empresa Tier A que usa
+    Teamtailor, vía su feed JSON público."""
+    try:
+        url = f"https://{subdomain}/jobs.json"
+        response = requests.get(url, timeout=10)
+        if response.status_code != 200:
+            return []
+        data = response.json()
+        offers = []
+        for item in data.get('items', []):
+            posting = item.get('_jobposting', {})
+            job_locations = posting.get('jobLocation', [])
+            if job_locations:
+                address = job_locations[0].get('address', {})
+                location = address.get('addressLocality') or 'No especificada'
+            else:
+                location = 'No especificada'
+
+            mode = "Remoto" if posting.get('jobLocationType') == 'TELECOMMUTE' else "No especificado"
+
+            description = re.sub('<[^<]+?>', ' ', item.get('content_html', ''))
+            offer = JobOffer(
+                title=item.get('title', 'Sin título'),
+                location=location,
+                mode=mode,
+                company=company_label,
+                url=item.get('url', '#'),
+                source=f"Teamtailor ({company_label})",
+                description=description[:1500],
+                found_date=datetime.now().isoformat()
+            )
+            offers.append(offer)
+        return offers
+    except Exception as e:
+        logger.error(f"Error en Teamtailor ({company_label}): {e}")
+        return []
+
 # ============================================
 # NODOS LANGGRAPH
 # ============================================
@@ -328,6 +380,15 @@ def search_node(state: State) -> State:
             # se eliminaron del alcance v1 (fuera de las fuentes acordadas).
 
             time.sleep(0.5)
+
+    # 3. Webs de empresas Tier A (Teamtailor) - fuera del bucle de ciudades/
+    # keywords: el feed devuelve todas las ofertas abiertas de golpe, no
+    # admite búsqueda por keyword.
+    for subdomain, company_label in TIER_A_TEAMTAILOR_SOURCES:
+        tt_offers = search_teamtailor(subdomain, company_label)
+        if tt_offers:
+            logger.info(f"    + Teamtailor ({company_label}): {len(tt_offers)} ofertas")
+            all_found.extend(tt_offers)
 
     logger.info(f"Resumen: {len(all_found)} ofertas totales encontradas")
 
