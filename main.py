@@ -3,7 +3,8 @@ AGENTE DE BÚSQUEDA DE PRÁCTICAS FCT
 =====================================================
 Características:
 - Búsqueda en fuentes activas: Adzuna, Tecnoempleo, webs de empresas Tier A vía
-  Teamtailor (Fase 6, piloto: Freepik/Magnific, idealista/AvaiBook). Indeed e
+  Teamtailor (Fase 6: Freepik/Magnific, idealista/AvaiBook, Cívica; el resto de
+  empresas Tier A no tienen ATS con feed público conocido, ver plan). Indeed e
   InfoJobs pendientes, ver notas junto a sus funciones de búsqueda
 - Clasificación Tier A / Tier B / descarte vía API de Gemini (classifier.py)
 - Memoria persistente (no repite ofertas vistas)
@@ -311,6 +312,7 @@ def search_infojobs_rss(keyword: str, location: str) -> list[JobOffer]:
 TIER_A_TEAMTAILOR_SOURCES = [
     ("jobs.magnific.com", "Freepik/Magnific"),
     ("idealista.teamtailor.com", "idealista/AvaiBook"),
+    ("empleo.civica-soft.com", "Cívica"),
 ]
 
 def search_teamtailor(subdomain: str, company_label: str) -> list[JobOffer]:
