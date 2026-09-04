@@ -134,17 +134,33 @@ def send_offer_for_review(offer):
         return False
 
 def send_offers_for_review(offers):
-    """Envía un aviso con el total, seguido de un mensaje por oferta (cada
-    una con sus propios botones de aprobación)."""
+    """Envía un aviso con el total, un mensaje individual con botones por
+    cada oferta clasificada (Tier A/B), y un único resumen agrupado para las
+    que fallaron al clasificar (tier='error') - para no inundar Telegram con
+    decenas de mensajes casi idénticos si la API de clasificación falla en
+    muchas ofertas seguidas. Las de error siguen quedando 'pending' en la
+    base de datos, solo cambia cómo se notifican."""
     if not offers:
         return
+
+    classified = [o for o in offers if o.tier != "error"]
+    errored = [o for o in offers if o.tier == "error"]
 
     send_telegram(
         f"🔍 <b>{len(offers)} nuevas ofertas para revisar</b>\n"
         f"📅 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
-    for offer in offers:
+    for offer in classified:
         send_offer_for_review(offer)
+
+    if errored:
+        preview = "\n".join(f"• {o.title[:60]}" for o in errored[:15])
+        extra = f"\n… y {len(errored) - 15} más" if len(errored) > 15 else ""
+        send_telegram(
+            f"⚠️ <b>{len(errored)} ofertas no se pudieron clasificar</b> "
+            f"(error de la API de Gemini).\n"
+            f"Quedan guardadas como pendientes en la base de datos.\n\n{preview}{extra}"
+        )
 
 # ============================================
 # FUENTES DE DATOS
@@ -467,7 +483,12 @@ def classify_node(state: State) -> State:
     logger.info(f"Clasificando {len(state['offers'])} ofertas...")
 
     to_review = []
-    for offer in state['offers']:
+    for i, offer in enumerate(state['offers']):
+        if i > 0:
+            # Ritmo entre llamadas: el nivel gratuito de Gemini admite solo
+            # ~10-15 peticiones/min. classify_offer ya reintenta ante 429,
+            # pero espaciar las llamadas evita depender solo de eso.
+            time.sleep(5)
         tier, justification = classify_offer(offer)
         offer.tier = tier
         offer.justification = justification
