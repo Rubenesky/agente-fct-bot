@@ -162,6 +162,66 @@ def send_offers_for_review(offers):
             f"Quedan guardadas como pendientes en la base de datos.\n\n{preview}{extra}"
         )
 
+def format_followup_message(contact: dict) -> str:
+    """Construye el texto del aviso de seguimiento pendiente para un
+    contacto (fila de la tabla `contacts`, incluye 'rowid', 'company' y
+    'attempt_count'). A partir del 3er intento añade una advertencia para que
+    el estudiante se plantee si merece la pena seguir insistiendo."""
+    message = (
+        f"🔔 Toca hacer seguimiento a <b>{contact['company']}</b> "
+        f"(intento nº {contact['attempt_count']})"
+    )
+    if contact['attempt_count'] >= 3:
+        message += (
+            "\n⚠️ Este es tu recordatorio del intento nº 3 o posterior — "
+            "plantéate si merece la pena seguir insistiendo."
+        )
+    return message
+
+def send_followup_reminder(contact: dict) -> bool:
+    """Envía un aviso de seguimiento pendiente por Telegram con un botón
+    inline "❌ Cerrar" (callback_data=close_contact:<rowid>). Reutiliza el
+    mismo estilo de request HTTP directo a la API de Telegram que ya usa
+    send_offer_for_review, en vez de una librería nueva."""
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        response = requests.post(url, json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": format_followup_message(contact),
+            "parse_mode": "HTML",
+            "reply_markup": {
+                "inline_keyboard": [[
+                    {
+                        "text": "❌ Cerrar (respondió / lo dejo)",
+                        "callback_data": f"close_contact:{contact['rowid']}"
+                    }
+                ]]
+            }
+        }, timeout=10)
+        return response.status_code == 200
+    except Exception as e:
+        logger.error(f"Error enviando recordatorio de seguimiento a Telegram: {e}")
+        return False
+
+def notify_due_followups():
+    """Avisa por Telegram de los contactos con seguimiento vencido
+    (db.get_due_followups) y limpia next_followup_date de cada uno tras
+    notificarlo (db.clear_followup_date), para no repetir el mismo aviso en
+    cada ejecución del cron hasta que el usuario reprograme una nueva fecha
+    con /seguimiento. NO reprograma automáticamente ni genera borradores de
+    mensaje - eso queda fuera de alcance de esta funcionalidad."""
+    due = db.get_due_followups()
+    if not due:
+        return
+
+    logger.info(f"{len(due)} contacto(s) con seguimiento pendiente hoy")
+    for contact in due:
+        # Solo se limpia next_followup_date si el aviso llegó de verdad - si
+        # Telegram falla, se deja la fecha como estaba para que el próximo
+        # cron lo reintente, en vez de perder el recordatorio en silencio.
+        if send_followup_reminder(contact):
+            db.clear_followup_date(contact['rowid'])
+
 # ============================================
 # FUENTES DE DATOS
 # ============================================
@@ -610,6 +670,13 @@ def run_agent():
     try:
         result = app.invoke(initial_state)
         logger.info(f"Ejecucion completada: {len(result['offers'])} ofertas notificadas para revisión")
+
+        # Recordatorio de seguimiento: se llama al final del flujo, ya dentro
+        # de esta misma ejecución del cron, para que el commit final de
+        # offers.db que hace el workflow de GitHub Actions incluya también
+        # los cambios de next_followup_date/status de la tabla `contacts`.
+        notify_due_followups()
+
         return result
     except Exception as e:
         logger.error(f"Error en la ejecucion: {e}")

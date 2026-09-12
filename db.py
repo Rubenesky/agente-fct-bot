@@ -27,6 +27,24 @@ CREATE TABLE IF NOT EXISTS offers (
 );
 """
 
+# Tabla `contacts` - recordatorio de seguimiento a reclutadores/empresas con
+# los que el estudiante ya habló. Usa el rowid implícito de SQLite como
+# identificador corto, igual que `offers` (se reutiliza en los botones de
+# Telegram vía callback_data).
+CONTACTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS contacts (
+    company TEXT NOT NULL,
+    contact_name TEXT,
+    channel TEXT,
+    notes TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_followup_date TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_date TEXT NOT NULL,
+    last_contact_date TEXT
+);
+"""
+
 
 @contextmanager
 def get_connection():
@@ -40,9 +58,10 @@ def get_connection():
 
 
 def init_db():
-    """Crea la tabla `offers` si no existe. Idempotente."""
+    """Crea las tablas `offers` y `contacts` si no existen. Idempotente."""
     with get_connection() as conn:
         conn.execute(SCHEMA)
+        conn.execute(CONTACTS_SCHEMA)
 
 
 def is_seen(url: str) -> bool:
@@ -142,3 +161,87 @@ def update_offer_classification(rowid: int, tier: str, justification: str) -> No
             "UPDATE offers SET tier = ?, justification = ?, status = ? WHERE rowid = ?",
             (tier, justification, status, rowid)
         )
+
+
+def set_followup(company: str, next_followup_date: str, notes: str | None = None) -> int:
+    """Registra (o reprograma) un seguimiento pendiente para una empresa.
+
+    Busca una fila existente por nombre de empresa, sin distinguir
+    mayúsculas/minúsculas. Si existe: incrementa attempt_count en 1,
+    actualiza next_followup_date y last_contact_date (ahora), y conserva las
+    notes anteriores si no se pasa un valor no vacío. Si no existe: inserta
+    una fila nueva con attempt_count=1, status='active', created_date y
+    last_contact_date=ahora.
+
+    Devuelve el rowid de la fila (nueva o actualizada) - se usa como
+    identificador corto en los botones de Telegram, igual que save_offer con
+    las ofertas."""
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT rowid FROM contacts WHERE LOWER(company) = LOWER(?)", (company,)
+        ).fetchone()
+
+        if existing is not None:
+            rowid = existing["rowid"]
+            if notes:
+                conn.execute(
+                    """UPDATE contacts
+                       SET attempt_count = attempt_count + 1,
+                           next_followup_date = ?,
+                           last_contact_date = ?,
+                           notes = ?
+                       WHERE rowid = ?""",
+                    (next_followup_date, now, notes, rowid)
+                )
+            else:
+                conn.execute(
+                    """UPDATE contacts
+                       SET attempt_count = attempt_count + 1,
+                           next_followup_date = ?,
+                           last_contact_date = ?
+                       WHERE rowid = ?""",
+                    (next_followup_date, now, rowid)
+                )
+            return rowid
+
+        cursor = conn.execute(
+            """INSERT INTO contacts
+               (company, notes, attempt_count, next_followup_date, status,
+                created_date, last_contact_date)
+               VALUES (?, ?, 1, ?, 'active', ?, ?)""",
+            (company, notes, next_followup_date, now, now)
+        )
+        return cursor.lastrowid
+
+
+def get_due_followups() -> list[dict]:
+    """Contactos activos con seguimiento vencido (fecha de hoy o anterior),
+    más antiguos primero. Se usa desde el cron (main.py) para decidir a
+    quién avisar por Telegram en cada ejecución."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT rowid, * FROM contacts
+               WHERE status = 'active'
+                 AND next_followup_date IS NOT NULL
+                 AND next_followup_date <= date('now')
+               ORDER BY next_followup_date"""
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def clear_followup_date(rowid: int) -> None:
+    """Pone next_followup_date a NULL tras notificar un seguimiento vencido,
+    para no repetir el mismo aviso en cada ejecución del cron hasta que el
+    usuario reprograme una nueva fecha con /seguimiento."""
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE contacts SET next_followup_date = NULL WHERE rowid = ?", (rowid,)
+        )
+
+
+def close_contact(rowid: int) -> None:
+    """Marca un contacto como cerrado (respondió, o el usuario deja de
+    insistir) - deja de aparecer en get_due_followups."""
+    with get_connection() as conn:
+        conn.execute("UPDATE contacts SET status = 'closed' WHERE rowid = ?", (rowid,))
