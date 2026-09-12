@@ -32,7 +32,7 @@ from config import (
     ADZUNA_APP_ID, ADZUNA_API_KEY,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
     LOG_FILE,
-    CITIES, KEYWORDS, MAX_ITERATIONS, MAX_CLASSIFICATIONS_PER_RUN
+    CITIES, KEYWORDS, MAX_CLASSIFICATIONS_PER_RUN
 )
 from classifier import classify_offer
 import db
@@ -79,7 +79,6 @@ class JobOffer(BaseModel):
 class State(TypedDict):
     offers: list[JobOffer]
     seen_companies: set[str]
-    iteration: int
     finished: bool
 
 # ============================================
@@ -501,7 +500,6 @@ def search_node(state: State) -> State:
             print("")
     
     state['offers'].extend(unique_offers)
-    state['iteration'] += 1
     return state
 
 def filter_node(state: State) -> State:
@@ -517,13 +515,6 @@ def filter_node(state: State) -> State:
 def reflect_node(state: State) -> State:
     """Nodo de reflexión."""
     return state
-
-def router(state: State) -> str:
-    """Decide si repetir la búsqueda o pasar a clasificación."""
-    if len(state['offers']) < 5 and state['iteration'] < MAX_ITERATIONS:
-        return "search"
-    else:
-        return "classify"
 
 def classify_node(state: State) -> State:
     """
@@ -623,9 +614,18 @@ def classify_node(state: State) -> State:
 # CONSTRUCCIÓN DEL GRAFO
 # ============================================
 def create_graph():
-    """Crea y devuelve el grafo LangGraph."""
+    """Crea y devuelve el grafo LangGraph.
+
+    Pipeline lineal: search -> filter -> reflect -> classify, sin bucle de
+    reintento. search_node consulta fuentes deterministas (Adzuna,
+    Tecnoempleo RSS, Teamtailor): dentro de una misma ejecución, las mismas
+    keywords contra las mismas fuentes en el mismo momento siempre devuelven
+    lo mismo, y nada marca ofertas como "vistas" hasta classify_node (vía
+    db.save_offer). Repetir la búsqueda antes de clasificar no podía
+    encontrar nada nuevo, solo repetía ~59 llamadas HTTP idénticas por
+    intento extra."""
     graph = StateGraph(State)
-    
+
     graph.add_node("search_node", search_node)
     graph.add_node("filter_node", filter_node)
     graph.add_node("reflect_node", reflect_node)
@@ -634,16 +634,8 @@ def create_graph():
     graph.add_edge(START, "search_node")
     graph.add_edge("search_node", "filter_node")
     graph.add_edge("filter_node", "reflect_node")
+    graph.add_edge("reflect_node", "classify_node")
 
-    graph.add_conditional_edges(
-        "reflect_node",
-        router,
-        {
-            "search": "search_node",
-            "classify": "classify_node"
-        }
-    )
-    
     return graph.compile()
 
 # ============================================
@@ -663,7 +655,6 @@ def run_agent():
     initial_state: State = {
         "offers": [],
         "seen_companies": set(),
-        "iteration": 0,
         "finished": False
     }
     

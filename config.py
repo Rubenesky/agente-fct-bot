@@ -37,8 +37,6 @@ KEYWORDS = [
     "desarrollo", "programación", "becario", "beca",
     "estudiante", "junior", "trainee", "informática", "sistemas"
 ]
-MAX_ITERATIONS = 3       # Número máximo de iteraciones del loop
-
 # Tope de ofertas que se clasifican (llamadas a Gemini) en una sola ejecución
 # del cron - el resto se deja para la siguiente ejecución en vez de intentar
 # clasificarlas todas de golpe (se llegó a ver una tanda de 74 ofertas nuevas

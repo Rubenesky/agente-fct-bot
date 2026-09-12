@@ -49,7 +49,7 @@ def make_error_row(i: int) -> dict:
 
 
 def make_state(offers):
-    return {"offers": offers, "seen_companies": set(), "iteration": 1, "finished": False}
+    return {"offers": offers, "seen_companies": set(), "finished": False}
 
 
 @pytest.fixture(autouse=True)
