@@ -15,7 +15,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from config import DB_FILE, GIT_PUSH_TOKEN
+import requests
+
+from config import DB_FILE, GIT_PUSH_TOKEN, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,57 @@ _REMOTE_URL_RE = re.compile(
 # (git remote get-url origin -> "No such remote 'origin'"), así que no se
 # puede depender de leerlo dinámicamente.
 _FALLBACK_OWNER_REPO = "Rubenesky/agente-fct-bot"
+
+# Contador de fallos consecutivos de sync_offers_db (solo de intentos reales
+# de sincronización, no del caso "GIT_PUSH_TOKEN no configurado", que es una
+# ausencia de configuración conocida y no un fallo transitorio). Variable a
+# nivel de módulo: controller.py corre como un único proceso persistente en
+# Render, así que no hace falta persistirlo en base de datos - se resetea
+# solo si el proceso se reinicia, lo cual es aceptable (un fallo real vuelve
+# a ocurrir y a sumar en el siguiente intento).
+_consecutive_failures = 0
+
+# Cada cuántos fallos consecutivos seguidos se repite el aviso por Telegram,
+# para no machacar con un mensaje por cada fallo individual tras el primero
+# pero tampoco silenciarlo para siempre si el problema persiste.
+_ALERT_EVERY_N_FAILURES = 3
+
+
+def _alert_git_sync_failing(count: int) -> None:
+    """Avisa por Telegram de que git_sync lleva `count` fallos consecutivos
+    sincronizando offers.db. Protegido con su propio try/except: si el aviso
+    en sí falla (p.ej. Telegram también caído), solo se loguea - no debe
+    convertirse en un segundo punto de fallo silencioso."""
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        requests.post(
+            url,
+            json={
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": (
+                    f"⚠️ git_sync lleva {count} fallos seguidos sincronizando "
+                    "offers.db con git - las últimas decisiones no se están "
+                    "guardando en git. Revisa el token GIT_PUSH_TOKEN."
+                ),
+            },
+            timeout=10,
+        )
+    except Exception:
+        logger.exception("git_sync: no se pudo enviar el aviso de fallos por Telegram")
+
+
+def _record_sync_result(success: bool) -> None:
+    """Actualiza el contador de fallos consecutivos de sync_offers_db y
+    dispara un aviso por Telegram cada _ALERT_EVERY_N_FAILURES fallos
+    seguidos (3, 6, 9, ...)."""
+    global _consecutive_failures
+    if success:
+        _consecutive_failures = 0
+        return
+
+    _consecutive_failures += 1
+    if _consecutive_failures % _ALERT_EVERY_N_FAILURES == 0:
+        _alert_git_sync_failing(_consecutive_failures)
 
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
@@ -103,6 +156,13 @@ def sync_offers_db(reason: str) -> bool:
     romper el flujo del bot ni bloquear la respuesta a Telegram. Si falla,
     el siguiente intento (la próxima decisión, o el pull --rebase del cron
     de GitHub Actions) puede recuperarlo - no hay reintentos automáticos.
+
+    Además, lleva la cuenta de fallos consecutivos (_consecutive_failures) y
+    avisa por Telegram cada 3 fallos seguidos, para que un GIT_PUSH_TOKEN
+    revocado/expirado no pase desapercibido (antes solo quedaba un
+    logger.error que nadie veía). El caso "token no configurado" (más abajo)
+    no cuenta para ese contador: es una ausencia de configuración conocida y
+    documentada, no un fallo transitorio de sincronización.
     """
     token = GIT_PUSH_TOKEN
     if not token:
@@ -114,6 +174,15 @@ def sync_offers_db(reason: str) -> bool:
         )
         return False
 
+    success = _attempt_sync(token, reason)
+    _record_sync_result(success)
+    return success
+
+
+def _attempt_sync(token: str, reason: str) -> bool:
+    """Intento real de sincronización (add/commit/pull/push). Extraído de
+    sync_offers_db para que su resultado alimente el contador de fallos
+    consecutivos sin incluir el caso "token no configurado"."""
     try:
         remote_url = _authenticated_remote_url(token)
         if remote_url is None:
