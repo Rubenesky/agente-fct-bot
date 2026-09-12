@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
@@ -109,16 +110,37 @@ async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.exception(f"Fallo inesperado sincronizando offers.db con git (rowid={rowid})")
 
 def run_telegram_bot():
-    logger.info("🤖 Iniciando bot de Telegram...")
-    db.init_db()
-    app = Application.builder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("status", status))
-    app.add_handler(CallbackQueryHandler(handle_decision))
+    """Arranca el polling de Telegram con reintento en bucle: si otra
+    instancia solapada (p.ej. durante un redeploy en Render) provoca un
+    telegram.error.Conflict, run_polling() detiene toda la Application en
+    vez de reintentar sola. Antes eso hacía que el proceso terminara y
+    dependiera de que Render reiniciara el contenedor entero - si el
+    contenedor viejo tardaba en morir, el nuevo volvía a chocar con él y
+    el ciclo podía alargarse varios minutos. Ahora se reintenta dentro del
+    mismo proceso tras una breve espera, sin depender de un reinicio de
+    Render."""
+    backoff_seconds = 10
+    while True:
+        try:
+            logger.info("🤖 Iniciando bot de Telegram...")
+            db.init_db()
+            app = Application.builder().token(TOKEN).build()
+            app.add_handler(CommandHandler("start", start))
+            app.add_handler(CommandHandler("status", status))
+            app.add_handler(CallbackQueryHandler(handle_decision))
 
-    logger.info("🚀 Bot de control iniciado en Render.com...")
-    logger.info("📱 Comandos disponibles: /start, /status")
-    app.run_polling()
+            logger.info("🚀 Bot de control iniciado en Render.com...")
+            logger.info("📱 Comandos disponibles: /start, /status")
+            app.run_polling()
+            logger.warning(
+                "El polling de Telegram terminó por su cuenta (posible Conflict "
+                "con otra instancia) - reintentando en %ss", backoff_seconds
+            )
+        except Exception:
+            logger.exception(
+                "Fallo en el polling de Telegram - reintentando en %ss", backoff_seconds
+            )
+        time.sleep(backoff_seconds)
 
 if __name__ == "__main__":
     web_thread = threading.Thread(target=lambda: app_web.run(host='0.0.0.0', port=10000, debug=False))

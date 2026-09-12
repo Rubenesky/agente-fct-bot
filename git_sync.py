@@ -140,12 +140,14 @@ def sync_offers_db(reason: str) -> bool:
         branch_result = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
         branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
 
-        pull_result = _run(["git", "pull", "--rebase", remote_url, branch])
+        pull_result = _run(["git", "pull", "--rebase", "--autostash", remote_url, branch])
         if pull_result.returncode != 0:
+            status_result = _run(["git", "status", "--porcelain"])
             logger.error(
                 "git_sync: 'git pull --rebase' falló (posible carrera con otro "
-                "push casi simultáneo, p.ej. el cron): %s",
+                "push casi simultáneo, p.ej. el cron): %s | git status --porcelain: %s",
                 _scrub(pull_result.stderr, token),
+                _scrub(status_result.stdout, token) or "(vacío)",
             )
             # Deja el repo limpio para el próximo intento en vez de a medio rebasear.
             _run(["git", "rebase", "--abort"])
