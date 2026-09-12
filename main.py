@@ -32,7 +32,7 @@ from config import (
     ADZUNA_APP_ID, ADZUNA_API_KEY,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
     LOG_FILE,
-    CITIES, KEYWORDS, MAX_ITERATIONS
+    CITIES, KEYWORDS, MAX_ITERATIONS, MAX_CLASSIFICATIONS_PER_RUN
 )
 from classifier import classify_offer
 import db
@@ -40,7 +40,7 @@ import db
 # ============================================
 # SOLUCIÓN PARA ERRORES DE ENCODING EN WINDOWS
 # ============================================
-if sys.platform == 'win32':
+if sys.platform == 'win32' and (sys.stdout.encoding or '').lower() != 'utf-8':
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
@@ -473,17 +473,58 @@ def classify_node(state: State) -> State:
     "descarte" según los criterios definidos se notifica por Telegram y queda
     con status 'pending' hasta que el usuario decida (Fase 4). Un fallo del
     clasificador nunca se trata como descarte (ver classify_offer).
+
+    Cupo por ejecución (MAX_CLASSIFICATIONS_PER_RUN): además de las ofertas
+    nuevas de esta corrida, se reintentan ofertas que quedaron en tier='error'
+    en ejecuciones anteriores (antes esto era el script manual
+    reclassify_errors.py, ahora ya no hace falta ejecutarlo a mano). Ambos
+    grupos comparten el mismo cupo total para no multiplicar las llamadas a
+    Gemini por ejecución. Se reserva hasta un tercio del cupo para reintentos
+    de error - así un backlog grande de errores no se come todo el cupo de
+    ofertas nuevas, pero tampoco se queda indefinidamente sin avanzar; si hay
+    menos errores pendientes que ese tercio, el resto se lo quedan las
+    ofertas nuevas. Las ofertas nuevas que no entran en el cupo de esta
+    ejecución NO se guardan en la base de datos, así que search_node las
+    volverá a encontrar (no están marcadas como "vistas") y se clasificarán
+    en la siguiente ejecución del cron.
     """
-    if not state['offers']:
-        logger.info("No hay ofertas nuevas para clasificar.")
+    error_quota = max(1, MAX_CLASSIFICATIONS_PER_RUN // 3) if MAX_CLASSIFICATIONS_PER_RUN > 0 else 0
+    error_rows = db.get_error_offers(limit=error_quota)
+    new_quota = max(MAX_CLASSIFICATIONS_PER_RUN - len(error_rows), 0)
+
+    new_offers = state['offers'][:new_quota]
+    deferred = len(state['offers']) - len(new_offers)
+    if deferred > 0:
+        logger.info(
+            f"{deferred} ofertas nuevas superan el cupo de {MAX_CLASSIFICATIONS_PER_RUN} "
+            f"por ejecución, quedan para la siguiente corrida del cron."
+        )
+
+    error_offers = [
+        JobOffer(
+            title=row['title'], location=row['location'], mode=row['mode'],
+            company=row['company'], url=row['url'], source=row['source'],
+            description=row['description'] or '', found_date=row['found_date'],
+            db_id=row['rowid'],
+        )
+        for row in error_rows
+    ]
+
+    to_classify = new_offers + error_offers
+
+    if not to_classify:
+        logger.info("No hay ofertas nuevas ni errores pendientes que reintentar.")
         state['offers'] = []
         state['finished'] = True
         return state
 
-    logger.info(f"Clasificando {len(state['offers'])} ofertas...")
+    logger.info(
+        f"Clasificando {len(to_classify)} ofertas "
+        f"({len(new_offers)} nuevas, {len(error_offers)} reintentos de tier='error')..."
+    )
 
     to_review = []
-    for i, offer in enumerate(state['offers']):
+    for i, offer in enumerate(to_classify):
         if i > 0:
             # Ritmo entre llamadas: el nivel gratuito de Gemini admite solo
             # ~10-15 peticiones/min. classify_offer ya reintenta ante 429,
@@ -492,10 +533,19 @@ def classify_node(state: State) -> State:
         tier, justification = classify_offer(offer)
         offer.tier = tier
         offer.justification = justification
-        offer.db_id = db.save_offer(offer)
+
+        if offer.db_id:
+            # Ya existía en la base de datos (reintento de una oferta en
+            # 'error'): se actualiza la fila existente en vez de insertar
+            # una nueva.
+            db.update_offer_classification(offer.db_id, tier, justification)
+        else:
+            offer.db_id = db.save_offer(offer)
 
         if tier == "descarte":
             logger.info(f"❌ Descartada: {offer.title[:50]} — {justification}")
+        elif tier == "error":
+            logger.warning(f"⚠️ Sigue en error: {offer.title[:50]} — {justification}")
         else:
             logger.info(f"✅ Tier {tier}: {offer.title[:50]} — {justification}")
             to_review.append(offer)

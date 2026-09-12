@@ -1,5 +1,6 @@
 """classifier.py - Clasificación Tier A / Tier B / descarte vía Gemini API (Google)."""
 import logging
+import random
 import time
 from typing import Literal
 
@@ -49,6 +50,39 @@ Devuelve el tier y una justificación breve (1-2 frases) de tu decisión."""
 
 
 MAX_RETRIES = 3  # solo para 429 (rate limit) - otros errores no se reintentan
+BASE_BACKOFF_SECONDS = 5  # base del backoff exponencial cuando la API no da retryDelay
+MAX_BACKOFF_SECONDS = 60  # tope superior de espera, venga de retryDelay o del backoff exponencial
+
+
+def _extract_retry_delay_seconds(error: genai_errors.APIError) -> float | None:
+    """Busca el retryDelay recomendado que Gemini incluye en los detalles del
+    error 429 de cuota agotada (bloque google.rpc.RetryInfo, p.ej.
+    {"retryDelay": "19s"}) y lo devuelve en segundos.
+
+    Devuelve None si el error no lo expone o no se puede parsear - el SDK
+    google-genai (2.20.0) no expone un atributo retry_delay propio en
+    APIError, solo el cuerpo crudo de la respuesta en `error.details`.
+    """
+    details = getattr(error, "details", None)
+    if not isinstance(details, dict):
+        return None
+    error_body = details.get("error", details)
+    if not isinstance(error_body, dict):
+        return None
+    for item in error_body.get("details", []) or []:
+        if not isinstance(item, dict):
+            continue
+        if "RetryInfo" not in str(item.get("@type", "")):
+            continue
+        delay = item.get("retryDelay")
+        if not delay:
+            continue
+        try:
+            return float(str(delay).rstrip("s"))
+        except (TypeError, ValueError):
+            return None
+    return None
+
 
 def classify_offer(offer) -> tuple[str, str]:
     """Clasifica una oferta con la API de Gemini.
@@ -58,11 +92,14 @@ def classify_offer(offer) -> tuple[str, str]:
     oferta se manda igualmente a revisión humana, con el motivo del fallo como
     justificación.
 
-    Reintenta con backoff creciente (15s, 30s, 45s) específicamente ante 429
-    (límite de peticiones por minuto de Gemini) - el nivel gratuito admite solo
-    ~10-15 peticiones/min, e ir clasificando muchas ofertas seguidas sin ritmo
-    lo agota rápido. Otros errores (auth, cuota diaria agotada, etc.) no se
-    reintentan, se marcan como 'error' directamente.
+    Reintenta específicamente ante 429 (límite de peticiones de Gemini) - el
+    nivel gratuito admite solo ~10-15 peticiones/min, e ir clasificando muchas
+    ofertas seguidas sin ritmo lo agota rápido. El tiempo de espera entre
+    reintentos usa el retryDelay que la propia API recomienda en el error
+    (bloque RetryInfo) cuando está presente, o si no, backoff exponencial con
+    jitter (nunca los 15/30/45s fijos de antes), con un tope de
+    MAX_BACKOFF_SECONDS. Otros errores (auth, cuota diaria agotada sin
+    RetryInfo, etc.) no se reintentan, se marcan como 'error' directamente.
     """
     offer_text = (
         f"Título: {offer.title}\n"
@@ -88,10 +125,24 @@ def classify_offer(offer) -> tuple[str, str]:
             return result.tier, result.justification
         except genai_errors.APIError as e:
             if e.code == 429 and attempt < MAX_RETRIES:
-                wait = 15 * (attempt + 1)
+                retry_delay = _extract_retry_delay_seconds(e)
+                if retry_delay is not None:
+                    wait = min(retry_delay, MAX_BACKOFF_SECONDS)
+                    source = "retryDelay de la API"
+                else:
+                    # Backoff exponencial con jitter (base 5s: 5, 10, 20... +
+                    # hasta BASE_BACKOFF_SECONDS de jitter aleatorio) en vez de
+                    # las esperas fijas de antes, para no sincronizar
+                    # reintentos con otros procesos que choquen con el mismo
+                    # límite de cuota.
+                    wait = min(
+                        MAX_BACKOFF_SECONDS,
+                        BASE_BACKOFF_SECONDS * (2 ** attempt) + random.uniform(0, BASE_BACKOFF_SECONDS),
+                    )
+                    source = "backoff exponencial con jitter"
                 logger.warning(
                     f"Clasificador: límite de peticiones (429), "
-                    f"reintento {attempt + 1}/{MAX_RETRIES} en {wait}s"
+                    f"reintento {attempt + 1}/{MAX_RETRIES} en {wait:.1f}s ({source})"
                 )
                 time.sleep(wait)
                 continue

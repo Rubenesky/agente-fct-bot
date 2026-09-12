@@ -4,8 +4,9 @@ from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from config import TELEGRAM_BOT_TOKEN as TOKEN
+from config import TELEGRAM_BOT_TOKEN as TOKEN, TELEGRAM_CHAT_ID
 import db
+import git_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,8 +25,15 @@ def health():
     return "OK", 200
 
 # --- Funciones del bot ---
+def _is_authorized(chat_id) -> bool:
+    """Comprueba que el chat_id del mensaje coincide con el usuario autorizado del bot."""
+    return str(chat_id) == str(TELEGRAM_CHAT_ID)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    if not _is_authorized(chat_id):
+        logger.warning(f"⛔ /start ignorado: chat_id no autorizado ({chat_id})")
+        return
     logger.info(f"📩 Recibido /start de {chat_id}")
     await update.message.reply_text(
         "🤖 <b>Bot de control del Agente FCT</b>\n\n"
@@ -39,6 +47,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    if not _is_authorized(chat_id):
+        logger.warning(f"⛔ /status ignorado: chat_id no autorizado ({chat_id})")
+        return
     logger.info(f"📩 Recibido /status de {chat_id}")
     db.init_db()
     pending = db.get_pending_offers()
@@ -54,6 +65,11 @@ async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja los botones ✅ Aprobar / ❌ Descartar de cada oferta."""
     query = update.callback_query
     await query.answer()
+
+    chat_id = query.message.chat.id if query.message else None
+    if not _is_authorized(chat_id):
+        logger.warning(f"⛔ Callback ignorado: chat_id no autorizado ({chat_id})")
+        return
 
     try:
         action, rowid_str = query.data.split(":", 1)
@@ -80,6 +96,17 @@ async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=query.message.text_html + f"\n\n<b>{label}</b>",
         parse_mode="HTML"
     )
+
+    # Sube offers.db a git para que la decisión no se pierda en el próximo
+    # redeploy de Render (filesystem efímero) ni sea sobreescrita por el
+    # próximo commit automático del cron de GitHub Actions. Se ejecuta
+    # después de responder en Telegram (arriba) para que un push lento o
+    # fallido nunca retrase ni rompa la respuesta al usuario - ver
+    # git_sync.sync_offers_db, que ya captura cualquier error internamente.
+    try:
+        git_sync.sync_offers_db(reason=f"Telegram: {label} rowid={rowid}")
+    except Exception:
+        logger.exception(f"Fallo inesperado sincronizando offers.db con git (rowid={rowid})")
 
 def run_telegram_bot():
     logger.info("🤖 Iniciando bot de Telegram...")

@@ -111,3 +111,34 @@ def set_status(rowid: int, status: str) -> None:
             "UPDATE offers SET status = ?, decided_date = ? WHERE rowid = ?",
             (status, datetime.now().isoformat(), rowid)
         )
+
+
+def get_error_offers(limit: int) -> list[dict]:
+    """Ofertas que quedaron con tier='error' (fallo de clasificación en una
+    ejecución anterior, normalmente rate limit de Gemini) a reintentar, más
+    antiguas primero. `limit` acota cuántas se devuelven para no saltarse el
+    tope de clasificaciones por ejecución (MAX_CLASSIFICATIONS_PER_RUN)."""
+    if limit <= 0:
+        return []
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT rowid, * FROM offers WHERE tier = 'error' ORDER BY found_date LIMIT ?",
+            (limit,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def update_offer_classification(rowid: int, tier: str, justification: str) -> None:
+    """Actualiza tier/justification de una oferta que ya existía en la base
+    de datos (reintento de una que había quedado en 'error'), a diferencia de
+    save_offer que solo inserta ofertas nuevas.
+
+    status se deriva del nuevo tier igual que en save_offer: 'descarte' si
+    tier == 'descarte', 'pending' en cualquier otro caso (sigue pendiente de
+    revisión humana, incluso si vuelve a fallar y sigue en 'error')."""
+    status = "descarte" if tier == "descarte" else "pending"
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE offers SET tier = ?, justification = ?, status = ? WHERE rowid = ?",
+            (tier, justification, status, rowid)
+        )
