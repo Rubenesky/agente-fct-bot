@@ -137,8 +137,13 @@ def sync_offers_db(reason: str) -> bool:
             logger.error("git_sync: 'git commit' falló: %s", _scrub(commit_result.stderr, token))
             return False
 
-        branch_result = _run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-        branch = branch_result.stdout.strip() if branch_result.returncode == 0 else "main"
+        # No se detecta dinámicamente con `git rev-parse --abbrev-ref HEAD`:
+        # en el checkout de Render el repo está en detached HEAD (sin rama
+        # local activa), así que eso devuelve literalmente "HEAD", y un push
+        # a "HEAD:HEAD" es rechazado por git ("not a full refname"). Este
+        # proyecto solo usa main (ver render.yaml, search.yml), así que se
+        # fija directamente en vez de autodetectarla.
+        branch = "main"
 
         pull_result = _run(["git", "pull", "--rebase", "--autostash", remote_url, branch])
         if pull_result.returncode != 0:
