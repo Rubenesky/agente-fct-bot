@@ -33,6 +33,13 @@ _REMOTE_URL_RE = re.compile(
     r"(?P<owner>[^/]+)/(?P<repo>.+?)(?:\.git)?/?$"
 )
 
+# Repo conocido de este proyecto - usado como respaldo si el checkout no
+# tiene un remote 'origin' configurado. Confirmado en producción: el
+# contenedor de Render clona el repo sin dejar un remote 'origin' utilizable
+# (git remote get-url origin -> "No such remote 'origin'"), así que no se
+# puede depender de leerlo dinámicamente.
+_FALLBACK_OWNER_REPO = "Rubenesky/agente-fct-bot"
+
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
     """Ejecuta un comando git dentro del repo, capturando stdout/stderr."""
@@ -65,8 +72,13 @@ def _authenticated_remote_url(token: str) -> str | None:
     """
     result = _run(["git", "remote", "get-url", "origin"])
     if result.returncode != 0:
-        logger.error("git_sync: no se pudo leer el remote 'origin': %s", _scrub(result.stderr, token))
-        return None
+        logger.warning(
+            "git_sync: no hay remote 'origin' configurado (%s) - se usa el "
+            "repo de respaldo %s",
+            _scrub(result.stderr, token), _FALLBACK_OWNER_REPO,
+        )
+        owner, repo = _FALLBACK_OWNER_REPO.split("/", 1)
+        return f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
 
     match = _REMOTE_URL_RE.match(result.stdout.strip())
     if not match:
