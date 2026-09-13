@@ -162,8 +162,9 @@ class TestSearchHimalayas:
 
 
 class TestSearchNodeIntegratesNewSources:
-    """Confirma que Jooble se llama dentro del bucle CITIES x KEYWORDS (como
-    Adzuna/Tecnoempleo) y que Himalayas se llama una sola vez por keyword de
+    """Confirma que Jooble se llama una sola vez por ciudad (no por cada
+    combinación ciudad/keyword, para no agotar el límite de solicitudes de
+    la cuenta gratuita) y que Himalayas se llama una sola vez por keyword de
     su propio subconjunto reducido, fuera del bucle de ciudades (como
     Teamtailor) - una ciudad española no filtra nada en una fuente 100%
     remota."""
@@ -171,7 +172,7 @@ class TestSearchNodeIntegratesNewSources:
     def make_state(self):
         return {"offers": [], "seen_companies": set(), "finished": False}
 
-    def test_jooble_called_once_per_city_and_keyword(self):
+    def test_jooble_called_once_per_city_not_multiplied_by_keywords(self):
         with patch.object(main, "search_adzuna", return_value=[]), \
              patch.object(main, "search_tecnoempleo_rss", return_value=[]), \
              patch.object(main, "search_teamtailor", return_value=[]), \
@@ -181,7 +182,7 @@ class TestSearchNodeIntegratesNewSources:
              patch.object(main.time, "sleep"):
             main.search_node(self.make_state())
 
-        assert jooble_mock.call_count == len(main.CITIES) * len(main.KEYWORDS)
+        assert jooble_mock.call_count == len(main.CITIES)
 
     def test_himalayas_called_once_per_keyword_not_multiplied_by_cities(self):
         with patch.object(main, "search_adzuna", return_value=[]), \

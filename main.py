@@ -558,6 +558,24 @@ def search_node(state: State) -> State:
 
     for city in CITIES:
         logger.info(f"📌 Buscando en {city}...")
+
+        # 3. Jooble - UNA sola llamada por ciudad (no por cada keyword),
+        # combinando los términos más relevantes en una sola query (probado
+        # en vivo: Jooble trata varias palabras como búsqueda ampliada, no
+        # exige coincidencia exacta). La cuenta de Jooble del usuario tiene
+        # un límite de 500 solicitudes cuyo periodo (¿diario? ¿total?) no
+        # se aclaraba en el aviso de alta - con 28 llamadas/ejecución
+        # (2 ciudades x 14 keywords) se agotaría en pocos días si fuera un
+        # límite total. A 1 por ciudad (2/ejecución, 4/día) el margen de
+        # seguridad es mucho mayor bajo cualquier interpretación del límite.
+        # Sin JOOBLE_API_KEY, search_jooble devuelve [] sin hacer ninguna
+        # petición HTTP - ver aviso ya logueado arriba.
+        jooble_query = "FCT practicas DAW desarrollo programacion"
+        jooble_offers = search_jooble(jooble_query, city)
+        if jooble_offers:
+            logger.info(f"    + Jooble: {len(jooble_offers)} ofertas")
+            all_found.extend(jooble_offers)
+
         for keyword in KEYWORDS:
             logger.info(f"  - {keyword}")
 
@@ -572,13 +590,6 @@ def search_node(state: State) -> State:
             if tecno_offers:
                 logger.info(f"    + Tecnoempleo: {len(tecno_offers)} ofertas")
                 all_found.extend(tecno_offers)
-
-            # 3. Jooble (sin JOOBLE_API_KEY, search_jooble devuelve [] sin
-            # hacer ninguna llamada HTTP - ver aviso ya logueado arriba)
-            jooble_offers = search_jooble(keyword, city)
-            if jooble_offers:
-                logger.info(f"    + Jooble: {len(jooble_offers)} ofertas")
-                all_found.extend(jooble_offers)
 
             # Indeed e InfoJobs: descartadas por bloqueo anti-bot serio (RSS
             # muertos o CAPTCHA), ver notas junto a search_indeed_rss /
