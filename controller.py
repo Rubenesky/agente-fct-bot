@@ -1,3 +1,4 @@
+import functools
 import logging
 import threading
 import time
@@ -31,11 +32,52 @@ def _is_authorized(chat_id) -> bool:
     """Comprueba que el chat_id del mensaje coincide con el usuario autorizado del bot."""
     return str(chat_id) == str(TELEGRAM_CHAT_ID)
 
+def require_authorized_chat(is_callback: bool = False):
+    """Fábrica de decorador que sustituye el
+    `if not _is_authorized(chat_id): logger.warning(...); return` repetido en
+    los 5 handlers del bot. Los dos tipos de handler extraen el chat_id de
+    forma distinta, así que el decorador lo recibe como parámetro en vez de
+    intentar adivinarlo (update/query llegan como MagicMock en los tests, y
+    "detectar" la presencia de update.callback_query no es fiable ahí: un
+    MagicMock() sin ese atributo fijado explícitamente NO es None, es otro
+    MagicMock, así que una detección automática por "is not None" tomaría la
+    rama equivocada en los tests de start/status/seguimiento):
+
+    - `is_callback=True` (handle_decision, handle_close_contact): el chat_id
+      sale de `update.callback_query.message.chat.id`, y SIEMPRE se llama
+      primero a `await update.callback_query.answer()` -antes- de comprobar
+      la autorización, igual que hacía cada handler, para que el botón no se
+      quede en "cargando..." aunque el chat no esté autorizado.
+    - `is_callback=False` (por defecto; start, status, seguimiento): el
+      chat_id sale de `update.effective_chat.id`, sin responder nada de
+      antemano (son mensajes normales, no botones).
+
+    Si el chat_id no está autorizado, loguea el mismo warning que ya
+    logueaba cada handler y no llama al cuerpo original (misma señal de
+    retorno implícita: None)."""
+    def decorator(handler):
+        @functools.wraps(handler)
+        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            if is_callback:
+                query = update.callback_query
+                await query.answer()
+                chat_id = query.message.chat.id if query.message else None
+                warning_label = "Callback"
+            else:
+                chat_id = update.effective_chat.id
+                warning_label = f"/{handler.__name__}"
+
+            if not _is_authorized(chat_id):
+                logger.warning(f"⛔ {warning_label} ignorado: chat_id no autorizado ({chat_id})")
+                return
+
+            return await handler(update, context)
+        return wrapper
+    return decorator
+
+@require_authorized_chat()
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    if not _is_authorized(chat_id):
-        logger.warning(f"⛔ /start ignorado: chat_id no autorizado ({chat_id})")
-        return
     logger.info(f"📩 Recibido /start de {chat_id}")
     await update.message.reply_text(
         "🤖 <b>Bot de control del Agente FCT</b>\n\n"
@@ -49,11 +91,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+@require_authorized_chat()
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    if not _is_authorized(chat_id):
-        logger.warning(f"⛔ /status ignorado: chat_id no autorizado ({chat_id})")
-        return
     logger.info(f"📩 Recibido /status de {chat_id}")
     db.init_db()
     pending = db.get_pending_offers()
@@ -65,15 +105,10 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+@require_authorized_chat(is_callback=True)
 async def handle_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja los botones ✅ Aprobar / ❌ Descartar de cada oferta."""
     query = update.callback_query
-    await query.answer()
-
-    chat_id = query.message.chat.id if query.message else None
-    if not _is_authorized(chat_id):
-        logger.warning(f"⛔ Callback ignorado: chat_id no autorizado ({chat_id})")
-        return
 
     try:
         action, rowid_str = query.data.split(":", 1)
@@ -124,13 +159,11 @@ def _parse_ddmmyyyy(value: str):
     except ValueError:
         return None
 
+@require_authorized_chat()
 async def seguimiento(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /seguimiento Empresa X | dd/mm/aaaa | nota opcional - programa
     (o reprograma) un recordatorio de seguimiento con una empresa/contacto."""
     chat_id = update.effective_chat.id
-    if not _is_authorized(chat_id):
-        logger.warning(f"⛔ /seguimiento ignorado: chat_id no autorizado ({chat_id})")
-        return
     logger.info(f"📩 Recibido /seguimiento de {chat_id}")
 
     text = update.message.text or ""
@@ -175,17 +208,12 @@ async def seguimiento(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         logger.exception(f"Fallo inesperado sincronizando offers.db con git (seguimiento: {empresa})")
 
+@require_authorized_chat(is_callback=True)
 async def handle_close_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el botón "❌ Cerrar" de los avisos de seguimiento. Handler
     separado de handle_decision (que sigue siendo solo para approve/reject de
     ofertas) porque la lógica y la tabla afectada son distintas."""
     query = update.callback_query
-    await query.answer()
-
-    chat_id = query.message.chat.id if query.message else None
-    if not _is_authorized(chat_id):
-        logger.warning(f"⛔ Callback ignorado: chat_id no autorizado ({chat_id})")
-        return
 
     try:
         _, rowid_str = query.data.split(":", 1)

@@ -88,19 +88,29 @@ class State(TypedDict):
 # ============================================
 # NOTIFICACIONES TELEGRAM
 # ============================================
-def send_telegram(message):
-    """Envía un mensaje por Telegram."""
+def _telegram_post(payload: dict, error_context: str = "Telegram") -> bool:
+    """POST genérico a la API de Telegram (sendMessage): construye la URL a
+    partir de TELEGRAM_BOT_TOKEN, hace la petición con el payload ya armado
+    por la función llamante y centraliza el try/except de logging. Devuelve
+    True solo si Telegram respondió 200; cualquier excepción (red, timeout,
+    etc.) se loguea y se traduce también en False, nunca se propaga.
+    `error_context` conserva el texto exacto que cada función ya logueaba
+    (p.ej. "oferta a Telegram") para no perder detalle en los logs."""
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        response = requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": message,
-            "parse_mode": "HTML"
-        }, timeout=10)
+        response = requests.post(url, json=payload, timeout=10)
         return response.status_code == 200
     except Exception as e:
-        logger.error(f"Error enviando Telegram: {e}")
+        logger.error(f"Error enviando {error_context}: {e}")
         return False
+
+def send_telegram(message):
+    """Envía un mensaje por Telegram."""
+    return _telegram_post({
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "HTML"
+    })
 
 TIER_EMOJI = {"A": "🅰️", "B": "🅱️", "error": "⚠️"}
 
@@ -118,23 +128,17 @@ def send_offer_for_review(offer):
     """Envía una oferta individual por Telegram con botones inline
     Aprobar/Descartar. callback_data usa offer.db_id (rowid en SQLite) en vez
     de la URL completa, porque callback_data tiene un límite de 64 bytes."""
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        response = requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": format_offer_message(offer),
-            "parse_mode": "HTML",
-            "reply_markup": {
-                "inline_keyboard": [[
-                    {"text": "✅ Aprobar", "callback_data": f"approve:{offer.db_id}"},
-                    {"text": "❌ Descartar", "callback_data": f"reject:{offer.db_id}"}
-                ]]
-            }
-        }, timeout=10)
-        return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Error enviando oferta a Telegram: {e}")
-        return False
+    return _telegram_post({
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": format_offer_message(offer),
+        "parse_mode": "HTML",
+        "reply_markup": {
+            "inline_keyboard": [[
+                {"text": "✅ Aprobar", "callback_data": f"approve:{offer.db_id}"},
+                {"text": "❌ Descartar", "callback_data": f"reject:{offer.db_id}"}
+            ]]
+        }
+    }, error_context="oferta a Telegram")
 
 def send_offers_for_review(offers):
     """Envía un aviso con el total, un mensaje individual con botones por
@@ -186,25 +190,19 @@ def send_followup_reminder(contact: dict) -> bool:
     inline "❌ Cerrar" (callback_data=close_contact:<rowid>). Reutiliza el
     mismo estilo de request HTTP directo a la API de Telegram que ya usa
     send_offer_for_review, en vez de una librería nueva."""
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        response = requests.post(url, json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": format_followup_message(contact),
-            "parse_mode": "HTML",
-            "reply_markup": {
-                "inline_keyboard": [[
-                    {
-                        "text": "❌ Cerrar (respondió / lo dejo)",
-                        "callback_data": f"close_contact:{contact['rowid']}"
-                    }
-                ]]
-            }
-        }, timeout=10)
-        return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Error enviando recordatorio de seguimiento a Telegram: {e}")
-        return False
+    return _telegram_post({
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": format_followup_message(contact),
+        "parse_mode": "HTML",
+        "reply_markup": {
+            "inline_keyboard": [[
+                {
+                    "text": "❌ Cerrar (respondió / lo dejo)",
+                    "callback_data": f"close_contact:{contact['rowid']}"
+                }
+            ]]
+        }
+    }, error_context="recordatorio de seguimiento a Telegram")
 
 def notify_due_followups():
     """Avisa por Telegram de los contactos con seguimiento vencido
