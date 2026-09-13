@@ -2,10 +2,13 @@
 AGENTE DE BÚSQUEDA DE PRÁCTICAS FCT
 =====================================================
 Características:
-- Búsqueda en fuentes activas: Adzuna, Tecnoempleo, webs de empresas Tier A vía
+- Búsqueda en fuentes activas: Adzuna, Tecnoempleo, Jooble (requiere
+  JOOBLE_API_KEY, opcional), Himalayas (remoto), webs de empresas Tier A vía
   Teamtailor (Fase 6: Freepik/Magnific, idealista/AvaiBook, Cívica; el resto de
-  empresas Tier A no tienen ATS con feed público conocido, ver plan). Indeed e
-  InfoJobs pendientes, ver notas junto a sus funciones de búsqueda
+  empresas Tier A no tienen ATS con feed público conocido, ver plan). Indeed,
+  InfoJobs y LinkedIn descartadas por bloqueo anti-bot serio (RSS muertos o
+  CAPTCHA), ver notas junto a sus funciones de búsqueda; se investigará
+  SEPE/otras fuentes más adelante
 - Clasificación Tier A / Tier B / descarte vía API de Gemini (classifier.py)
 - Memoria persistente (no repite ofertas vistas)
 - Sin aprobación automática: todo lo no descartado se notifica por Telegram
@@ -31,6 +34,7 @@ import feedparser
 from config import (
     ADZUNA_APP_ID, ADZUNA_API_KEY,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+    JOOBLE_API_KEY,
     LOG_FILE,
     CITIES, KEYWORDS, MAX_CLASSIFICATIONS_PER_RUN
 )
@@ -428,12 +432,129 @@ def search_teamtailor(subdomain: str, company_label: str) -> list[JobOffer]:
         logger.error(f"Error en Teamtailor ({company_label}): {e}")
         return []
 
+# 6. Jooble (agregador con cobertura España, API con key - opcional)
+# Requiere JOOBLE_API_KEY (config.py, opcional): se consigue registrándose
+# en es.jooble.org/api/about (registro self-service, la key llega por
+# email). Mientras el usuario no la configure, esta función no hace ninguna
+# llamada HTTP: devuelve [] de inmediato. El aviso de "fuente desactivada"
+# se loguea una sola vez por ejecución desde search_node (no aquí), para no
+# repetirlo en cada combinación de ciudad/keyword del bucle.
+#
+# Esquema de petición/respuesta confirmado en la documentación oficial
+# (help.jooble.org/en/support/solutions/articles/60001448238-rest-api-documentation):
+# POST https://es.jooble.org/api/{key} con body {"keywords", "location"};
+# respuesta {"totalCount": int, "jobs": [{"id", "title", "location",
+# "snippet", "salary", "source", "type", "link", "company", "updated"}]}.
+# Sí filtra por ubicación española, así que se llama dentro del mismo bucle
+# CITIES x KEYWORDS que Adzuna/Tecnoempleo.
+def search_jooble(keyword: str, location: str) -> list[JobOffer]:
+    """Busca ofertas en la API de Jooble (dominio es.jooble.org, cobertura
+    España). Sin JOOBLE_API_KEY configurada, devuelve [] sin hacer ninguna
+    petición HTTP."""
+    if not JOOBLE_API_KEY:
+        return []
+    try:
+        url = f"https://es.jooble.org/api/{JOOBLE_API_KEY}"
+        response = requests.post(url, json={
+            "keywords": keyword,
+            "location": location
+        }, timeout=15)
+        if response.status_code != 200:
+            return []
+        data = response.json()
+        offers = []
+        for item in data.get('jobs', []):
+            snippet = item.get('snippet', '')
+            mode = "Presencial"
+            if "remoto" in snippet.lower():
+                mode = "Remoto"
+            elif "híbrida" in snippet.lower() or "hibrida" in snippet.lower():
+                mode = "Híbrida"
+
+            offer = JobOffer(
+                title=item.get('title', 'Sin título'),
+                location=item.get('location', location),
+                mode=mode,
+                company=item.get('company', 'Empresa desconocida'),
+                url=item.get('link', '#'),
+                source="Jooble",
+                description=snippet[:500],
+                found_date=datetime.now().isoformat()
+            )
+            offers.append(offer)
+        return offers
+    except Exception as e:
+        logger.error(f"Error en Jooble: {e}")
+        return []
+
+# 7. Himalayas (API abierta, sin key, remoto con filtro nativo entry-level)
+# Endpoint público sin autenticación: GET himalayas.app/jobs/api/search.
+# Esquema de respuesta confirmado en vivo contra la API real: {"jobs": [...],
+# "totalCount", "offset", "limit"}, cada oferta con "title", "excerpt",
+# "description" (HTML completo), "companyName", "applicationLink" (URL para
+# aplicar), "guid", "pubDate", "expiryDate", "employmentType",
+# "locationRestrictions" (países donde puede estar el candidato - filtro de
+# elegibilidad, no la sede de la empresa, ya que todo lo que devuelve esta
+# API es remoto).
+#
+# Como es 100% remoto, una ciudad española no filtra nada aquí: se llama una
+# sola vez por ejecución, fuera del bucle CITIES x KEYWORDS (igual que
+# TIER_A_TEAMTAILOR_SOURCES/search_teamtailor), iterando solo sobre un
+# subconjunto reducido de keywords EN INGLÉS. Verificado en vivo contra la
+# API real: términos en español ("DAW", "desarrollo", "programación")
+# devuelven mucho ruido (ofertas de negocio/ventas/docencia que solo
+# coinciden por palabras sueltas), porque Himalayas es un agregador
+# internacional en inglés - "software developer"/"web developer"/
+# "junior developer" devuelven resultados consistentemente relevantes al
+# perfil DAW. Menos ruido también implica no desperdiciar cupo de
+# MAX_CLASSIFICATIONS_PER_RUN en ofertas irrelevantes.
+HIMALAYAS_KEYWORDS = ["software developer", "web developer", "junior developer"]
+
+def search_himalayas(keyword: str, limit: int = 10) -> list[JobOffer]:
+    """Busca ofertas remotas Entry-level en la API abierta de Himalayas."""
+    try:
+        url = "https://himalayas.app/jobs/api/search"
+        response = requests.get(url, params={
+            "q": keyword,
+            "seniority": "Entry-level",
+            "limit": limit
+        }, timeout=15)
+        if response.status_code != 200:
+            return []
+        data = response.json()
+        offers = []
+        for item in data.get('jobs', []):
+            offer = JobOffer(
+                title=item.get('title', 'Sin título'),
+                location="Remoto",
+                mode="Remoto",
+                company=item.get('companyName', 'Empresa desconocida'),
+                url=item.get('applicationLink', '#'),
+                source="Himalayas",
+                description=item.get('excerpt', ''),
+                found_date=datetime.now().isoformat()
+            )
+            offers.append(offer)
+        return offers
+    except Exception as e:
+        logger.error(f"Error en Himalayas: {e}")
+        return []
+
 # ============================================
 # NODOS LANGGRAPH
 # ============================================
 def search_node(state: State) -> State:
     """Nodo de búsqueda principal con las fuentes activas."""
     all_found = []
+
+    # Aviso de una sola vez por ejecución si Jooble está desactivada por
+    # falta de API key - fuera del bucle de ciudades/keywords para no
+    # repetirlo en cada combinación (sería spam en los logs).
+    if not JOOBLE_API_KEY:
+        logger.warning(
+            "Fuente Jooble desactivada: falta JOOBLE_API_KEY (ver .env.example "
+            "para instrucciones de cómo conseguirla)."
+        )
 
     for city in CITIES:
         logger.info(f"📌 Buscando en {city}...")
@@ -452,13 +573,23 @@ def search_node(state: State) -> State:
                 logger.info(f"    + Tecnoempleo: {len(tecno_offers)} ofertas")
                 all_found.extend(tecno_offers)
 
-            # Indeed e InfoJobs: INACTIVAS (ver notas junto a search_indeed_rss /
-            # search_infojobs_rss más arriba). LinkedIn, Glassdoor y Trabajos.com
-            # se eliminaron del alcance v1 (fuera de las fuentes acordadas).
+            # 3. Jooble (sin JOOBLE_API_KEY, search_jooble devuelve [] sin
+            # hacer ninguna llamada HTTP - ver aviso ya logueado arriba)
+            jooble_offers = search_jooble(keyword, city)
+            if jooble_offers:
+                logger.info(f"    + Jooble: {len(jooble_offers)} ofertas")
+                all_found.extend(jooble_offers)
+
+            # Indeed e InfoJobs: descartadas por bloqueo anti-bot serio (RSS
+            # muertos o CAPTCHA), ver notas junto a search_indeed_rss /
+            # search_infojobs_rss más arriba. LinkedIn se descartó por el
+            # mismo motivo. Jooble e Himalayas se añadieron como reemplazo
+            # de cobertura (13/09/2026); se investigará SEPE/otras fuentes
+            # más adelante.
 
             time.sleep(0.5)
 
-    # 3. Webs de empresas Tier A (Teamtailor) - fuera del bucle de ciudades/
+    # 4. Webs de empresas Tier A (Teamtailor) - fuera del bucle de ciudades/
     # keywords: el feed devuelve todas las ofertas abiertas de golpe, no
     # admite búsqueda por keyword.
     for subdomain, company_label in TIER_A_TEAMTAILOR_SOURCES:
@@ -466,6 +597,15 @@ def search_node(state: State) -> State:
         if tt_offers:
             logger.info(f"    + Teamtailor ({company_label}): {len(tt_offers)} ofertas")
             all_found.extend(tt_offers)
+
+    # 5. Himalayas (remoto) - también fuera del bucle de ciudades: es 100%
+    # remoto, una ciudad española no filtra nada aquí. Solo un subconjunto
+    # reducido de KEYWORDS (ver HIMALAYAS_KEYWORDS más arriba).
+    for keyword in HIMALAYAS_KEYWORDS:
+        himalayas_offers = search_himalayas(keyword)
+        if himalayas_offers:
+            logger.info(f"    + Himalayas ({keyword}): {len(himalayas_offers)} ofertas")
+            all_found.extend(himalayas_offers)
 
     logger.info(f"Resumen: {len(all_found)} ofertas totales encontradas")
 

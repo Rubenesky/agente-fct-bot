@@ -25,6 +25,13 @@ GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 # de cómo generarlo.
 GIT_PUSH_TOKEN = os.environ.get("GIT_PUSH_TOKEN")
 
+# API key de Jooble (agregador con cobertura España) usada por
+# search_jooble en main.py. Opcional: el usuario aún no se ha registrado.
+# Se consigue en es.jooble.org/api/about (registro self-service, la key
+# llega por email). Sin ella, search_jooble no hace ninguna llamada HTTP y
+# devuelve [] (esa fuente queda desactivada hasta configurarla).
+JOOBLE_API_KEY = os.environ.get("JOOBLE_API_KEY")
+
 # Archivos
 DB_FILE = "offers.db"
 LOG_FILE = "agente.log"

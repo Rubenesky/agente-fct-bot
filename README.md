@@ -8,7 +8,9 @@ seguimiento de los contactos con las empresas.
 ## Qué hace
 
 1. **Busca** ofertas 2 veces al día (cron de GitHub Actions) en Adzuna,
-   Tecnoempleo (RSS) y las webs de empleo (Teamtailor) de un puñado de
+   Tecnoempleo (RSS), Jooble (agregador con cobertura España, requiere
+   `JOOBLE_API_KEY` opcional), Himalayas (ofertas remotas, filtro nativo
+   Entry-level) y las webs de empleo (Teamtailor) de un puñado de
    empresas Tier A ya mapeadas (Cívica, idealista/AvaiBook, Freepik/Magnific).
 2. **Clasifica** cada oferta nueva con la API de Gemini en `Tier A` (empresa ya
    mapeada + ubicación válida + encaja en el perfil DAW), `Tier B` (mismo
@@ -66,6 +68,7 @@ Ver `.env.example`. Resumen:
 | `TELEGRAM_CHAT_ID` | Sí | Único chat autorizado para usar el bot. |
 | `GEMINI_API_KEY` | Sí | Clasificación de ofertas. |
 | `GIT_PUSH_TOKEN` | No | GitHub Personal Access Token (fine-grained, permiso *Contents: Read and write* solo sobre este repo) para que `controller.py`/`git_sync.py` puedan pushear `offers.db` desde Render. Sin ella el bot funciona igual, pero las decisiones no se sincronizan con git y se pierden en el siguiente redeploy. |
+| `JOOBLE_API_KEY` | No | Búsqueda en el agregador Jooble (cobertura España). Se consigue en `es.jooble.org/api/about` (registro self-service, la key llega por email). Sin ella, `search_jooble` no hace ninguna llamada HTTP y esa fuente queda desactivada (el resto sigue funcionando igual). |
 | `MAX_CLASSIFICATIONS_PER_RUN` | No (por defecto 30) | Tope de llamadas a Gemini por ejecución del cron, para no agotar la cuota de golpe. |
 
 ## Despliegue

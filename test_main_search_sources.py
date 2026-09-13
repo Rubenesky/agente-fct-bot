@@ -1,0 +1,234 @@
+"""test_main_search_sources.py - Pruebas de las fuentes de búsqueda Jooble e
+Himalayas (main.py).
+
+Jooble: agregador con cobertura España, requiere API key opcional
+(JOOBLE_API_KEY). Esquema de petición/respuesta confirmado en la
+documentación oficial de Jooble (help.jooble.org/en/support/solutions/
+articles/60001448238-rest-api-documentation): POST a
+https://es.jooble.org/api/{key} con body {"keywords", "location"}, respuesta
+{"totalCount": int, "jobs": [{"id","title","location","snippet","salary",
+"source","type","link","company","updated"}]}.
+
+Himalayas: API abierta sin key, 100% remoto, filtro nativo por
+seniority=Entry-level. Esquema de respuesta confirmado en vivo
+(GET himalayas.app/jobs/api/search): {"jobs": [...], "totalCount", "offset",
+"limit", ...}, cada oferta con "title", "excerpt", "description" (HTML),
+"companyName", "applicationLink", "guid", "pubDate", "expiryDate",
+"employmentType", "locationRestrictions".
+
+No se llama a ninguna API real: se mockea requests.post/requests.get.
+"""
+from unittest.mock import MagicMock, patch
+
+import main
+
+
+JOOBLE_RESPONSE_OK = {
+    "totalCount": 2,
+    "jobs": [
+        {
+            "id": 1234567890,
+            "title": "Becario/a Desarrollo DAW",
+            "location": "Granada",
+            "snippet": "Buscamos becario/a para prácticas de desarrollo web...",
+            "salary": "",
+            "source": "jooble",
+            "type": "Full-time",
+            "link": "https://es.jooble.org/jdp/12345",
+            "company": "Empresa Ejemplo",
+            "updated": "2026-09-01T12:00:00.0000000",
+        },
+        {
+            "id": 987654321,
+            "title": "Prácticas remotas programación",
+            "location": "Málaga",
+            "snippet": "Prácticas en modalidad remota para estudiantes...",
+            "salary": "",
+            "source": "jooble",
+            "type": "Internship",
+            "link": "https://es.jooble.org/jdp/98765",
+            "company": "Otra Empresa",
+            "updated": "2026-09-02T09:30:00.0000000",
+        },
+    ],
+}
+
+HIMALAYAS_RESPONSE_OK = {
+    "totalCount": 1,
+    "offset": 0,
+    "limit": 10,
+    "jobs": [
+        {
+            "title": "Junior Frontend Developer",
+            "excerpt": "We are looking for a junior developer to join our team...",
+            "description": "<p>Full HTML description with more detail</p>",
+            "companyName": "RemoteCo",
+            "applicationLink": "https://himalayas.app/jobs/remoteco/junior-frontend-developer",
+            "guid": "abc123",
+            "pubDate": "2026-08-01T00:00:00.000Z",
+            "expiryDate": "2026-10-01T00:00:00.000Z",
+            "employmentType": "Full-time",
+            "locationRestrictions": ["Spain", "Portugal"],
+        }
+    ],
+}
+
+
+def make_response(status_code=200, json_data=None):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.json.return_value = json_data or {}
+    return resp
+
+
+class TestSearchJooble:
+    def test_parses_offers_from_response(self):
+        with patch.object(main, "JOOBLE_API_KEY", "fake-key"), \
+             patch.object(main.requests, "post", return_value=make_response(200, JOOBLE_RESPONSE_OK)) as post_mock:
+            offers = main.search_jooble("DAW", "Granada")
+
+        post_mock.assert_called_once()
+        args, kwargs = post_mock.call_args
+        assert args[0] == "https://es.jooble.org/api/fake-key"
+        assert kwargs["json"] == {"keywords": "DAW", "location": "Granada"}
+
+        assert len(offers) == 2
+        first = offers[0]
+        assert isinstance(first, main.JobOffer)
+        assert first.title == "Becario/a Desarrollo DAW"
+        assert first.company == "Empresa Ejemplo"
+        assert first.url == "https://es.jooble.org/jdp/12345"
+        assert first.source == "Jooble"
+        assert "prácticas" in first.description.lower()
+        assert first.location == "Granada"
+
+    def test_no_api_key_returns_empty_without_http_call(self):
+        with patch.object(main, "JOOBLE_API_KEY", None), \
+             patch.object(main.requests, "post") as post_mock:
+            offers = main.search_jooble("DAW", "Granada")
+
+        assert offers == []
+        post_mock.assert_not_called()
+
+    def test_http_error_status_returns_empty_list(self):
+        with patch.object(main, "JOOBLE_API_KEY", "fake-key"), \
+             patch.object(main.requests, "post", return_value=make_response(500, {})):
+            offers = main.search_jooble("DAW", "Granada")
+
+        assert offers == []
+
+    def test_timeout_returns_empty_list(self):
+        with patch.object(main, "JOOBLE_API_KEY", "fake-key"), \
+             patch.object(main.requests, "post", side_effect=main.requests.exceptions.Timeout("timeout")):
+            offers = main.search_jooble("DAW", "Granada")
+
+        assert offers == []
+
+
+class TestSearchHimalayas:
+    def test_parses_offers_from_response(self):
+        with patch.object(main.requests, "get", return_value=make_response(200, HIMALAYAS_RESPONSE_OK)) as get_mock:
+            offers = main.search_himalayas("developer")
+
+        get_mock.assert_called_once()
+        args, kwargs = get_mock.call_args
+        assert args[0] == "https://himalayas.app/jobs/api/search"
+        assert kwargs["params"]["q"] == "developer"
+        assert kwargs["params"]["seniority"] == "Entry-level"
+
+        assert len(offers) == 1
+        offer = offers[0]
+        assert isinstance(offer, main.JobOffer)
+        assert offer.title == "Junior Frontend Developer"
+        assert offer.company == "RemoteCo"
+        assert offer.url == "https://himalayas.app/jobs/remoteco/junior-frontend-developer"
+        assert offer.source == "Himalayas"
+        assert offer.location == "Remoto"
+        assert offer.mode == "Remoto"
+        # description debe usar el excerpt (más corto), no la description HTML completa
+        assert offer.description == HIMALAYAS_RESPONSE_OK["jobs"][0]["excerpt"]
+
+    def test_http_error_status_returns_empty_list(self):
+        with patch.object(main.requests, "get", return_value=make_response(404, {})):
+            offers = main.search_himalayas("developer")
+
+        assert offers == []
+
+    def test_timeout_returns_empty_list(self):
+        with patch.object(main.requests, "get", side_effect=main.requests.exceptions.Timeout("timeout")):
+            offers = main.search_himalayas("developer")
+
+        assert offers == []
+
+
+class TestSearchNodeIntegratesNewSources:
+    """Confirma que Jooble se llama dentro del bucle CITIES x KEYWORDS (como
+    Adzuna/Tecnoempleo) y que Himalayas se llama una sola vez por keyword de
+    su propio subconjunto reducido, fuera del bucle de ciudades (como
+    Teamtailor) - una ciudad española no filtra nada en una fuente 100%
+    remota."""
+
+    def make_state(self):
+        return {"offers": [], "seen_companies": set(), "finished": False}
+
+    def test_jooble_called_once_per_city_and_keyword(self):
+        with patch.object(main, "search_adzuna", return_value=[]), \
+             patch.object(main, "search_tecnoempleo_rss", return_value=[]), \
+             patch.object(main, "search_teamtailor", return_value=[]), \
+             patch.object(main, "search_jooble", return_value=[]) as jooble_mock, \
+             patch.object(main, "search_himalayas", return_value=[]), \
+             patch.object(main.db, "is_seen", return_value=False), \
+             patch.object(main.time, "sleep"):
+            main.search_node(self.make_state())
+
+        assert jooble_mock.call_count == len(main.CITIES) * len(main.KEYWORDS)
+
+    def test_himalayas_called_once_per_keyword_not_multiplied_by_cities(self):
+        with patch.object(main, "search_adzuna", return_value=[]), \
+             patch.object(main, "search_tecnoempleo_rss", return_value=[]), \
+             patch.object(main, "search_teamtailor", return_value=[]), \
+             patch.object(main, "search_jooble", return_value=[]), \
+             patch.object(main, "search_himalayas", return_value=[]) as himalayas_mock, \
+             patch.object(main.db, "is_seen", return_value=False), \
+             patch.object(main.time, "sleep"):
+            main.search_node(self.make_state())
+
+        assert himalayas_mock.call_count == len(main.HIMALAYAS_KEYWORDS)
+        # nunca multiplicado por el número de ciudades (comprobación explícita
+        # de que Himalayas vive fuera del bucle CITIES x KEYWORDS)
+        assert himalayas_mock.call_count != len(main.CITIES) * len(main.HIMALAYAS_KEYWORDS)
+
+    def test_himalayas_offers_are_added_to_all_found(self):
+        offer = main.JobOffer(
+            title="Junior Dev Remoto",
+            location="Remoto",
+            mode="Remoto",
+            company="RemoteCo",
+            url="https://himalayas.app/jobs/remoteco/junior-dev",
+            source="Himalayas",
+        )
+        with patch.object(main, "search_adzuna", return_value=[]), \
+             patch.object(main, "search_tecnoempleo_rss", return_value=[]), \
+             patch.object(main, "search_teamtailor", return_value=[]), \
+             patch.object(main, "search_jooble", return_value=[]), \
+             patch.object(main, "search_himalayas", return_value=[offer]), \
+             patch.object(main.db, "is_seen", return_value=False), \
+             patch.object(main.time, "sleep"):
+            state = main.search_node(self.make_state())
+
+        assert any(o.url == offer.url for o in state["offers"])
+
+    def test_logs_jooble_disabled_warning_only_once_when_no_api_key(self, caplog):
+        import logging
+        with patch.object(main, "JOOBLE_API_KEY", None), \
+             patch.object(main, "search_adzuna", return_value=[]), \
+             patch.object(main, "search_tecnoempleo_rss", return_value=[]), \
+             patch.object(main, "search_teamtailor", return_value=[]), \
+             patch.object(main, "search_himalayas", return_value=[]), \
+             patch.object(main.db, "is_seen", return_value=False), \
+             patch.object(main.time, "sleep"), \
+             caplog.at_level(logging.WARNING, logger="main"):
+            main.search_node(self.make_state())
+
+        warnings = [r for r in caplog.records if "JOOBLE_API_KEY" in r.message]
+        assert len(warnings) == 1

@@ -17,3 +17,5 @@ services:
         sync: false
       - key: GIT_PUSH_TOKEN
         sync: false
+      - key: JOOBLE_API_KEY
+        sync: false
