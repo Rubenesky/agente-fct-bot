@@ -117,3 +117,63 @@ class TestCloseContact:
         with db.get_connection() as conn:
             row = conn.execute("SELECT status FROM contacts WHERE rowid = ?", (rowid,)).fetchone()
         assert row["status"] == "closed"
+
+
+class TestDeleteContactByName:
+    def test_deletes_existing_contact_case_insensitively_and_returns_one(self, temp_db):
+        db.set_followup("Empresa X", "2026-09-17", "nota")
+
+        deleted = db.delete_contact_by_name("empresa x")
+
+        assert deleted == 1
+        with db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM contacts WHERE LOWER(company) = LOWER(?)", ("Empresa X",)
+            ).fetchone()
+        assert row is None
+
+    def test_returns_zero_when_no_contact_matches(self, temp_db):
+        deleted = db.delete_contact_by_name("Empresa Inexistente")
+
+        assert deleted == 0
+
+    def test_deletes_all_rows_with_same_company_name(self, temp_db):
+        # No debería ocurrir en uso normal (set_followup evita duplicados),
+        # pero delete_contact_by_name debe borrar todas las filas que
+        # coincidan (mismo nombre, distinta capitalización) y devolver el
+        # conteo correcto.
+        with db.get_connection() as conn:
+            conn.execute(
+                """INSERT INTO contacts (company, notes, attempt_count, status, created_date)
+                   VALUES (?, ?, 0, 'active', '2026-01-01')""",
+                ("Empresa Duplicada", "nota 1"),
+            )
+            conn.execute(
+                """INSERT INTO contacts (company, notes, attempt_count, status, created_date)
+                   VALUES (?, ?, 0, 'active', '2026-01-01')""",
+                ("empresa duplicada", "nota 2"),
+            )
+
+        deleted = db.delete_contact_by_name("EMPRESA DUPLICADA")
+
+        assert deleted == 2
+        with db.get_connection() as conn:
+            count = conn.execute(
+                "SELECT COUNT(*) AS c FROM contacts WHERE LOWER(company) = LOWER(?)",
+                ("Empresa Duplicada",),
+            ).fetchone()["c"]
+        assert count == 0
+
+    def test_does_not_affect_other_companies(self, temp_db):
+        rowid_keep = db.set_followup("Empresa Mantener", "2026-09-17")
+        db.set_followup("Empresa Borrar", "2026-09-17")
+
+        deleted = db.delete_contact_by_name("Empresa Borrar")
+
+        assert deleted == 1
+        with db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM contacts WHERE rowid = ?", (rowid_keep,)
+            ).fetchone()
+        assert row is not None
+        assert row["company"] == "Empresa Mantener"

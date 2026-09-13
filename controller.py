@@ -87,7 +87,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Comandos disponibles:\n"
         "/status - Ver estado del bot y ofertas pendientes\n"
         "/seguimiento Empresa X | 17/09/2026 | nota opcional - Programa un "
-        "recordatorio de seguimiento",
+        "recordatorio de seguimiento\n"
+        "/olvidar Empresa X - Borra permanentemente el contacto de esa empresa",
         parse_mode="HTML"
     )
 
@@ -235,6 +236,49 @@ async def handle_close_contact(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception:
         logger.exception(f"Fallo inesperado sincronizando offers.db con git (rowid={rowid})")
 
+OLVIDAR_HELP = "ℹ️ Uso: /olvidar Empresa X"
+
+@require_authorized_chat()
+async def olvidar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando /olvidar Empresa X - borra de verdad (DELETE, no soft-delete)
+    el/los contacto(s) de esa empresa en la tabla `contacts`, a diferencia
+    del botón "❌ Cerrar" (handle_close_contact), que solo cambia status a
+    'closed' y deja la fila (con sus notes) en la base de datos para
+    siempre. Sintaxis más simple que /seguimiento (sin separadores `|`)
+    porque no hace falta fecha ni nota, solo el nombre de la empresa."""
+    chat_id = update.effective_chat.id
+    logger.info(f"📩 Recibido /olvidar de {chat_id}")
+
+    text = update.message.text or ""
+    body = text[len("/olvidar"):].strip()
+    # Quita también el sufijo "@nombre_del_bot" si el comando se escribió así.
+    if body.startswith("@"):
+        body = body.split(None, 1)[1] if " " in body else ""
+
+    empresa = body.strip()
+    if not empresa:
+        await update.message.reply_text(OLVIDAR_HELP)
+        return
+
+    deleted = db.delete_contact_by_name(empresa)
+
+    if deleted == 0:
+        logger.info(f"🔍 /olvidar: no se encontró ningún contacto '{empresa}'")
+        await update.message.reply_text(
+            f"🔍 No encontré ningún contacto llamado '{empresa}'."
+        )
+        return
+
+    logger.info(f"🗑️ Contacto(s) borrado(s): {empresa} (filas: {deleted})")
+    await update.message.reply_text(
+        f"🗑️ Contacto '{empresa}' olvidado - se ha borrado permanentemente de la base de datos."
+    )
+
+    try:
+        git_sync.sync_offers_db(reason=f"Telegram: /olvidar {empresa}")
+    except Exception:
+        logger.exception(f"Fallo inesperado sincronizando offers.db con git (olvidar: {empresa})")
+
 def run_telegram_bot():
     """Arranca el polling de Telegram con reintento en bucle: si otra
     instancia solapada (p.ej. durante un redeploy en Render) provoca un
@@ -254,6 +298,7 @@ def run_telegram_bot():
             app.add_handler(CommandHandler("start", start))
             app.add_handler(CommandHandler("status", status))
             app.add_handler(CommandHandler("seguimiento", seguimiento))
+            app.add_handler(CommandHandler("olvidar", olvidar))
             # handle_decision se acota a approve/reject de ofertas para que
             # no capture también los callbacks close_contact: de los avisos
             # de seguimiento (registrados aparte, con su propio handler).
@@ -261,7 +306,7 @@ def run_telegram_bot():
             app.add_handler(CallbackQueryHandler(handle_close_contact, pattern="^close_contact:"))
 
             logger.info("🚀 Bot de control iniciado en Render.com...")
-            logger.info("📱 Comandos disponibles: /start, /status, /seguimiento")
+            logger.info("📱 Comandos disponibles: /start, /status, /seguimiento, /olvidar")
             app.run_polling()
             logger.warning(
                 "El polling de Telegram terminó por su cuenta (posible Conflict "

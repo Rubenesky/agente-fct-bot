@@ -108,7 +108,12 @@ al ejecutarlos.
   no un patrón a copiar a gran escala. Si el repo es público, cualquier dato
   real que se guarde en `contacts` (nombres, contactos de reclutadores) queda
   en el historial de git para siempre, incluso si se borra después — plantéate
-  poner el repo en privado antes de guardar contactos reales.
+  poner el repo en privado antes de guardar contactos reales. El comando
+  `/olvidar Empresa X` borra de verdad (DELETE) la fila de `contacts` de esa
+  empresa — a diferencia del botón "❌ Cerrar", que solo la marca como
+  `closed` y la conserva — pero eso no limpia el historial de git: evita
+  anotar en `notes` datos personales del reclutador que no sean
+  estrictamente necesarios para el seguimiento.
 - **No hay generador de mensajes de seguimiento con IA**: se decidió
   explícitamente no construirlo por ahora (el recordatorio por sí solo ya
   cubre la mayor parte del valor con mucho menos esfuerzo/riesgo).

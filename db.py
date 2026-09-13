@@ -31,6 +31,17 @@ CREATE TABLE IF NOT EXISTS offers (
 # los que el estudiante ya habló. Usa el rowid implícito de SQLite como
 # identificador corto, igual que `offers` (se reutiliza en los botones de
 # Telegram vía callback_data).
+#
+# Qué NO conviene anotar en `notes`: este campo es texto libre y offers.db
+# se versiona en git (ver README, "Decisiones de diseño"), así que cualquier
+# cosa que se escriba aquí queda en el historial del repo para siempre,
+# aunque luego se borre la fila con /olvidar o delete_contact_by_name. Evita
+# guardar datos personales del reclutador más allá de lo estrictamente
+# necesario para el seguimiento (nada de teléfono/email/DNI personal,
+# comentarios sobre su aspecto o vida privada, capturas de conversaciones
+# privadas, etc.) - un nombre y una nota breve sobre el proceso ("dijo que
+# respondía la semana que viene") es el tipo de cosa para la que se pensó
+# este campo.
 CONTACTS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS contacts (
     company TEXT NOT NULL,
@@ -245,3 +256,24 @@ def close_contact(rowid: int) -> None:
     insistir) - deja de aparecer en get_due_followups."""
     with get_connection() as conn:
         conn.execute("UPDATE contacts SET status = 'closed' WHERE rowid = ?", (rowid,))
+
+
+def delete_contact_by_name(company: str) -> int:
+    """Borra de verdad (DELETE, no soft-delete) todas las filas de `contacts`
+    cuyo `company` coincida sin distinguir mayúsculas/minúsculas, a
+    diferencia de close_contact (que solo cambia status a 'closed' y deja la
+    fila, con sus `notes`, en la base de datos indefinidamente).
+
+    Se usa desde el comando /olvidar cuando el estudiante quiere que un
+    contacto deje de existir de verdad (p.ej. si se anotó por error algo
+    sensible en `notes`), no solo que deje de aparecer como pendiente.
+
+    Devuelve cuántas filas se borraron (0 si no existía ninguna con ese
+    nombre). En uso normal debería ser como mucho 1 (set_followup no
+    duplica filas), pero si hubiera varias con el mismo nombre se borran
+    todas."""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM contacts WHERE LOWER(company) = LOWER(?)", (company,)
+        )
+        return cursor.rowcount

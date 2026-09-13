@@ -134,3 +134,56 @@ class TestCloseContactCallback:
 
         mock_close.assert_not_called()
         update.callback_query.edit_message_text.assert_not_awaited()
+
+
+class TestOlvidarCommand:
+    def test_no_args_shows_help_and_does_not_call_anything(self):
+        update = make_update("/olvidar")
+
+        with patch.object(controller.db, "delete_contact_by_name") as mock_delete, \
+             patch.object(controller, "git_sync") as mock_git:
+            run(controller.olvidar(update, make_context()))
+
+        mock_delete.assert_not_called()
+        mock_git.sync_offers_db.assert_not_called()
+        update.message.reply_text.assert_awaited_once()
+        help_text = update.message.reply_text.call_args.args[0]
+        assert "/olvidar" in help_text
+
+    def test_existing_contact_confirms_deletion_and_syncs_git(self):
+        update = make_update("/olvidar Empresa X")
+
+        with patch.object(controller.db, "delete_contact_by_name", return_value=1) as mock_delete, \
+             patch.object(controller, "git_sync") as mock_git:
+            run(controller.olvidar(update, make_context()))
+
+        mock_delete.assert_called_once_with("Empresa X")
+        update.message.reply_text.assert_awaited_once()
+        confirmation = update.message.reply_text.call_args.args[0]
+        assert "Empresa X" in confirmation
+        mock_git.sync_offers_db.assert_called_once()
+
+    def test_nonexistent_contact_reports_not_found_and_does_not_sync_git(self):
+        update = make_update("/olvidar Empresa Fantasma")
+
+        with patch.object(controller.db, "delete_contact_by_name", return_value=0) as mock_delete, \
+             patch.object(controller, "git_sync") as mock_git:
+            run(controller.olvidar(update, make_context()))
+
+        mock_delete.assert_called_once_with("Empresa Fantasma")
+        update.message.reply_text.assert_awaited_once()
+        response = update.message.reply_text.call_args.args[0]
+        assert "Empresa Fantasma" in response
+        mock_git.sync_offers_db.assert_not_called()
+
+    def test_unauthorized_chat_id_is_ignored(self):
+        update = make_update("/olvidar Empresa X")
+        update.effective_chat.id = -1
+
+        with patch.object(controller.db, "delete_contact_by_name") as mock_delete, \
+             patch.object(controller, "git_sync") as mock_git:
+            run(controller.olvidar(update, make_context()))
+
+        mock_delete.assert_not_called()
+        mock_git.sync_offers_db.assert_not_called()
+        update.message.reply_text.assert_not_awaited()
