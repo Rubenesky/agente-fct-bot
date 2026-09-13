@@ -2,10 +2,10 @@ name: Buscar ofertas FCT
 
 on:
   schedule:
-    # 06:00 y 18:00 UTC = 08:00/20:00 hora de España en verano (CEST),
-    # 07:00/19:00 en invierno (CET) - desfase de 1h aceptado, GitHub Actions
+    # 07:00 y 19:00 UTC = 09:00/21:00 hora de España en verano (CEST),
+    # 08:00/20:00 en invierno (CET) - desfase de 1h aceptado, GitHub Actions
     # programa siempre en UTC.
-    - cron: '0 6,18 * * *'
+    - cron: '0 7,19 * * *'
   workflow_dispatch: {}
 
 concurrency:
