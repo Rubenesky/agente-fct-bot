@@ -35,7 +35,7 @@ from config import (
     ADZUNA_APP_ID, ADZUNA_API_KEY,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
     JOOBLE_API_KEY,
-    LOG_FILE,
+    LOG_FILE, DB_FILE,
     CITIES, KEYWORDS, MAX_CLASSIFICATIONS_PER_RUN
 )
 from classifier import classify_offer
@@ -222,6 +222,36 @@ def notify_due_followups():
         # cron lo reintente, en vez de perder el recordatorio en silencio.
         if send_followup_reminder(contact):
             db.clear_followup_date(contact['rowid'])
+
+# ============================================
+# BACKUP DE offers.db
+# ============================================
+def backup_offers_db_to_telegram() -> bool:
+    """Envía el fichero offers.db (DB_FILE) como documento adjunto por
+    Telegram al chat configurado en TELEGRAM_CHAT_ID: es la única fuente de
+    verdad de la app y solo está versionada en git, así que esto da una
+    copia fuera de git, accesible desde el móvil, sin necesitar ninguna
+    cuenta/credencial nueva (reutiliza TELEGRAM_BOT_TOKEN).
+
+    Usa sendDocument (multipart/form-data) en vez de _telegram_post
+    (sendMessage, que envía JSON) porque adjuntar un fichero requiere
+    multipart, no JSON. Mismo manejo de errores que el resto del proyecto:
+    nunca propaga la excepción, la loguea con logger.error y devuelve False.
+    La cadencia (cuándo se llama) la decide run_agent, no esta función."""
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        caption = f"🗄️ Backup de {DB_FILE} — {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        with open(DB_FILE, "rb") as db_file:
+            response = requests.post(
+                url,
+                data={"chat_id": TELEGRAM_CHAT_ID, "caption": caption},
+                files={"document": (DB_FILE, db_file)},
+                timeout=30
+            )
+        return response.status_code == 200
+    except Exception as e:
+        logger.error(f"Error enviando backup de {DB_FILE} a Telegram: {e}")
+        return False
 
 # ============================================
 # FUENTES DE DATOS
@@ -816,6 +846,25 @@ def run_agent():
         # offers.db que hace el workflow de GitHub Actions incluya también
         # los cambios de next_followup_date/status de la tabla `contacts`.
         notify_due_followups()
+
+        # Backup de offers.db por Telegram: no en cada ejecución (el cron
+        # corre 2 veces al día, sería ruido innecesario enviar el fichero
+        # completo cada vez), sino una cadencia semanal de bajo
+        # mantenimiento. Se elige domingo (weekday() == 6) por ser, de las
+        # opciones igual de simples, el día de menor actividad de ofertas
+        # nuevas para revisar. Deliberadamente sin estado adicional (nada de
+        # tabla/fichero de "última vez que se hizo backup"): comprobar el
+        # día de la semana con datetime.now() basta y no añade complejidad.
+        # Nota: como el cron corre 2 veces ese domingo (9:00 y 21:00), el
+        # backup se envía 2 veces ese día - aceptable por mantenerlo simple.
+        # Un fallo aquí (red, Telegram caído, etc.) se loguea pero nunca
+        # debe hacer fallar la ejecución completa: la búsqueda/clasificación
+        # ya se hizo bien, el backup es un extra.
+        if datetime.now().weekday() == 6:
+            try:
+                backup_offers_db_to_telegram()
+            except Exception as e:
+                logger.error(f"Error inesperado en el backup semanal de offers.db: {e}")
 
         return result
     except Exception as e:
