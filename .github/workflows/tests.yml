@@ -23,4 +23,14 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Ejecutar tests
+        env:
+          # config.py exige estas variables con os.environ[...] nada más
+          # importarse (fail-fast intencionado en producción). Los tests
+          # mockean todas las llamadas externas, así que no hace falta
+          # ningún valor real aquí - solo que la variable exista.
+          ADZUNA_APP_ID: test-adzuna-app-id
+          ADZUNA_API_KEY: test-adzuna-api-key
+          TELEGRAM_BOT_TOKEN: test-telegram-bot-token
+          TELEGRAM_CHAT_ID: "000000000"
+          GEMINI_API_KEY: test-gemini-api-key
         run: pytest
