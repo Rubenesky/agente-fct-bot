@@ -4,6 +4,19 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python controller.py
+    # Sin esto, cada push de git_sync.py (que solo toca offers.db tras una
+    # decisión de Telegram) dispara un redeploy nuevo del propio servicio
+    # que acaba de hacer ese push. Si el usuario aprueba/descarta varias
+    # ofertas seguidas, eso encadena redespliegues solapados: contenedores
+    # nuevos arrancando mientras otros siguen vivos, chocando entre sí por
+    # el polling de Telegram (errores 409 Conflict) y, en el peor caso,
+    # generando un conflicto real de git rebase sobre el binario SQLite
+    # (visto en producción el 14/09/2026 - 3 fallos consecutivos de
+    # git_sync que dispararon la alerta). Un push que solo modifica
+    # offers.db no cambia ningún código, así que no necesita redeploy.
+    buildFilter:
+      ignoredPaths:
+        - offers.db
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
